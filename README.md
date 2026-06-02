@@ -1,2 +1,2 @@
 # sparkrun-recipes
-Custom recipes for SparkRun
+Custom recipes for the sparkrun app (DGX Spark)
