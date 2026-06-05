@@ -14,7 +14,7 @@ defaults:
   port: 8001
   host: 0.0.0.0
   tensor_parallel: 1
-  gpu_memory_utilization: 0.4
+  gpu_memory_utilization: 0.3
   max_model_len: 262144
   max_num_seqs: 4
   served_model_name: gemma-4-26b-a4b-it-nvfp4
