@@ -16,15 +16,17 @@ defaults:
   tensor_parallel: 1
   gpu_memory_utilization: 0.3
   max_model_len: 262144
-  max_num_seqs: 4
+  max_num_batched_tokens: 32768
+  max_num_seqs: 24
   served_model_name: gemma-4-26b-a4b-it-nvfp4
   reasoning_parser: gemma4
   tool_call_parser: gemma4
   quantization: modelopt
   dtype: auto
   kv_cache_dtype: fp8
-  safetensors_load_strategy: lazy
-  moe_backend: marlin
+  load_format: instanttensor
+  attention_backend: flashinfer
+  speculative_config: '{"method":"mtp","num_speculative_tokens":4}'
 
 command: |
   python3 -m pip install --upgrade --user transformers==5.10.1
@@ -53,13 +55,17 @@ command: |
     --tensor-parallel-size {tensor_parallel} \
     --gpu-memory-utilization {gpu_memory_utilization} \
     --max-model-len {max_model_len} \
+    --max-num-batched-tokens {max_num_batched_tokens} \
     --max-num-seqs {max_num_seqs} \
     --quantization {quantization} \
     --dtype {dtype} \
     --kv-cache-dtype {kv_cache_dtype} \
+    --load-format {load_format} \
+    --attention-backend {attention_backend} \
     --reasoning-parser {reasoning_parser} \
     --enable-auto-tool-choice \
     --tool-call-parser {tool_call_parser} \
-    --safetensors-load-strategy {safetensors_load_strategy} \
-    --moe-backend {moe_backend} \
+    --speculative-config '{speculative_config}' \
+    --enable-prefix-caching \
+    --enable-prompt-tokens-details \
     --trust-remote-code

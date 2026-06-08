@@ -16,12 +16,15 @@ defaults:
   tensor_parallel: 1
   gpu_memory_utilization: 0.3
   max_model_len: 262144
+  max_num_batched_tokens: 32768
+  max_num_seqs: 24
   served_model_name: qwen3.6-35b-a3b-nvfp4
-  moe_backend: flashinfer_cutlass
+  kv_cache_dtype: fp8
+  load_format: instanttensor
+  attention_backend: flashinfer
   reasoning_parser: qwen3
   tool_call_parser: qwen3_coder
-  speculative_config: '{"method":"qwen3_next_mtp","num_speculative_tokens":4}'
-  safetensors_load_strategy: lazy
+  speculative_config: '{"method":"mtp","num_speculative_tokens":4}'
 
 command: |
   vllm serve {model} \
@@ -31,10 +34,15 @@ command: |
     --tensor-parallel-size {tensor_parallel} \
     --gpu-memory-utilization {gpu_memory_utilization} \
     --max-model-len {max_model_len} \
+    --max-num-batched-tokens {max_num_batched_tokens} \
+    --max-num-seqs {max_num_seqs} \
+    --kv-cache-dtype {kv_cache_dtype} \
+    --load-format {load_format} \
+    --attention-backend {attention_backend} \
     --reasoning-parser {reasoning_parser} \
-    --moe-backend {moe_backend} \
     --enable-auto-tool-choice \
     --tool-call-parser {tool_call_parser} \
     --speculative-config '{speculative_config}' \
-    --safetensors-load-strategy {safetensors_load_strategy} \
+    --enable-prefix-caching \
+    --enable-prompt-tokens-details \
     --trust-remote-code
