@@ -1,12 +1,12 @@
 recipe_version: "2"
 
-model: bg-digitalservices/Gemma-4-26B-A4B-it-NVFP4
+model: nvidia/Gemma-4-26B-A4B-NVFP4
 runtime: vllm
 max_nodes: 1
 container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-tf5
 
 metadata:
-  description: Gemma 4 26B A4B IT NVFP4 on single DGX Spark with vLLM
+  description: Gemma 4 26B A4B MoE NVFP4 on single DGX Spark with vLLM
   model_params: 26B-A4B
   model_dtype: nvfp4
 
@@ -18,35 +18,15 @@ defaults:
   max_model_len: 262144
   max_num_batched_tokens: 32768
   max_num_seqs: 24
-  served_model_name: gemma-4-26b-a4b-it-nvfp4
+  served_model_name: gemma-4-26b-a4b-nvfp4
   reasoning_parser: gemma4
   tool_call_parser: gemma4
   quantization: modelopt
   dtype: auto
   kv_cache_dtype: fp8
-  load_format: instanttensor
-  attention_backend: flashinfer
+  load_format: auto
 
 command: |
-  python3 -m pip install --no-cache-dir --upgrade --user transformers==5.10.1
-  export PYTHONPATH="/tmp/.local/lib/python3.12/site-packages:${PYTHONPATH}"
-  export VLLM_NVFP4_GEMM_BACKEND=marlin
-
-  python3 -c "import transformers; print(transformers.__version__); print(transformers.__file__)"
-
-  python3 - <<'PY'
-  import shutil
-  import urllib.request
-
-  url = "https://huggingface.co/bg-digitalservices/Gemma-4-26B-A4B-it-NVFP4/resolve/main/gemma4_patched.py"
-  target = "/usr/local/lib/python3.12/dist-packages/vllm/model_executor/models/gemma4.py"
-
-  urllib.request.urlretrieve(url, "/tmp/gemma4_patched.py")
-  shutil.copyfile("/tmp/gemma4_patched.py", target)
-
-  print(f"Patched {target}")
-  PY
-
   vllm serve {model} \
     --served-model-name {served_model_name} \
     --host {host} \
@@ -60,10 +40,10 @@ command: |
     --dtype {dtype} \
     --kv-cache-dtype {kv_cache_dtype} \
     --load-format {load_format} \
-    --attention-backend {attention_backend} \
     --reasoning-parser {reasoning_parser} \
     --enable-auto-tool-choice \
     --tool-call-parser {tool_call_parser} \
     --enable-prefix-caching \
     --enable-prompt-tokens-details \
-    --trust-remote-code
+    --trust-remote-code \
+    --linear-backend marlin
