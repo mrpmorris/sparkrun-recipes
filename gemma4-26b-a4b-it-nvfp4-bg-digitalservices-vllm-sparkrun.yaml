@@ -14,9 +14,11 @@ defaults:
   port: 8001
   host: 0.0.0.0
   tensor_parallel: 1
+  pipeline_parallel: 1
   gpu_memory_utilization: 0.3
   max_model_len: 262144
-  max_num_seqs: 4
+  max_num_batched_tokens: 32768
+  max_num_seqs: 24
   served_model_name: gemma-4-26b-a4b-it-nvfp4
   reasoning_parser: gemma4
   tool_call_parser: gemma4
@@ -25,6 +27,7 @@ defaults:
   kv_cache_dtype: fp8
   safetensors_load_strategy: lazy
   moe_backend: marlin
+  attention_backend: flashinfer
 
 command: |
   python3 -m pip install --upgrade --user transformers==5.10.1
@@ -51,8 +54,10 @@ command: |
     --host {host} \
     --port {port} \
     --tensor-parallel-size {tensor_parallel} \
+    --pipeline-parallel-size {pipeline_parallel} \
     --gpu-memory-utilization {gpu_memory_utilization} \
     --max-model-len {max_model_len} \
+    --max-num-batched-tokens {max_num_batched_tokens} \
     --max-num-seqs {max_num_seqs} \
     --quantization {quantization} \
     --dtype {dtype} \
@@ -60,6 +65,9 @@ command: |
     --reasoning-parser {reasoning_parser} \
     --enable-auto-tool-choice \
     --tool-call-parser {tool_call_parser} \
+    --attention-backend {attention_backend} \
+    --enable-prefix-caching \
+    --enable-prompt-tokens-details \
     --safetensors-load-strategy {safetensors_load_strategy} \
     --moe-backend {moe_backend} \
     --trust-remote-code

@@ -17,14 +17,17 @@ defaults:
  port: 8002
  host: 0.0.0.0
  tensor_parallel: 1
+ pipeline_parallel: 1
  gpu_memory_utilization: 0.3
  max_model_len: 262144
- max_num_seqs: 4
+ max_num_batched_tokens: 32768
+ max_num_seqs: 24
  served_model_name: nemotron-3-nano-omni-30b-a3b-reasoning-nvfp4
  quantization: modelopt
  dtype: auto
  kv_cache_dtype: fp8
  safetensors_load_strategy: lazy
+ attention_backend: flashinfer
 
 command: |
  vllm serve {model} \
@@ -32,13 +35,18 @@ command: |
  --host {host} \
  --port {port} \
  --tensor-parallel-size {tensor_parallel} \
+ --pipeline-parallel-size {pipeline_parallel} \
  --gpu-memory-utilization {gpu_memory_utilization} \
  --max-model-len {max_model_len} \
+ --max-num-batched-tokens {max_num_batched_tokens} \
  --max-num-seqs {max_num_seqs} \
  --quantization {quantization} \
  --dtype {dtype} \
  --kv-cache-dtype {kv_cache_dtype} \
+ --attention-backend {attention_backend} \
  --safetensors-load-strategy {safetensors_load_strategy} \
  --enable-auto-tool-choice \
  --tool-call-parser qwen3_coder \
+ --enable-prefix-caching \
+ --enable-prompt-tokens-details \
  --trust-remote-code

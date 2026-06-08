@@ -1,31 +1,30 @@
 recipe_version: "2"
 
-model: RedHatAI/Qwen3.6-35B-A3B-NVFP4
+model: Qwen/Qwen3-Coder-Next-FP8
 runtime: vllm
 max_nodes: 1
 container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-tf5
 
 metadata:
-  description: RedHatAI Qwen3.6 35B A3B NVFP4 on single DGX Spark with vLLM
+  description: Qwen3 Coder Next FP8 on single DGX Spark with vLLM
   model_params: 35B
-  model_dtype: nvfp4
+  model_dtype: fp8
 
 defaults:
-  port: 8000
+  port: 8003
   host: 0.0.0.0
   tensor_parallel: 1
   pipeline_parallel: 1
-  gpu_memory_utilization: 0.3
+  gpu_memory_utilization: 0.8
   max_model_len: 262144
-  max_num_batched_tokens: 32768
-  max_num_seqs: 24
-  served_model_name: qwen3.6-35b-a3b-nvfp4
-  moe_backend: flashinfer_cutlass
+  served_model_name: qwen3-coder-next-fp8
   reasoning_parser: qwen3
   tool_call_parser: qwen3_coder
+  kv_cache_dtype: fp8
+  load_format: instanttensor
   attention_backend: flashinfer
-  speculative_config: '{"method":"mtp","num_speculative_tokens":4}'
-  safetensors_load_strategy: lazy
+  max_num_batched_tokens: 32768
+  max_num_seqs: 24
 
 command: |
   vllm serve {model} \
@@ -36,15 +35,14 @@ command: |
     --pipeline-parallel-size {pipeline_parallel} \
     --gpu-memory-utilization {gpu_memory_utilization} \
     --max-model-len {max_model_len} \
-    --max-num-batched-tokens {max_num_batched_tokens} \
-    --max-num-seqs {max_num_seqs} \
     --reasoning-parser {reasoning_parser} \
-    --moe-backend {moe_backend} \
-    --attention-backend {attention_backend} \
     --enable-auto-tool-choice \
     --tool-call-parser {tool_call_parser} \
+    --kv-cache-dtype {kv_cache_dtype} \
+    --load-format {load_format} \
+    --attention-backend {attention_backend} \
     --enable-prefix-caching \
     --enable-prompt-tokens-details \
-    --speculative-config '{speculative_config}' \
-    --safetensors-load-strategy {safetensors_load_strategy} \
+    --max-num-batched-tokens {max_num_batched_tokens} \
+    --max-num-seqs {max_num_seqs} \
     --trust-remote-code
