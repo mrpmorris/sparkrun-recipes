@@ -25,7 +25,7 @@ defaults:
   attention_backend: flashinfer
   max_num_batched_tokens: 32768
   max_num_seqs: 24
-  speculative_config: '{"method":"qwen3_next_mtp","num_speculative_tokens":4}'
+  speculative_config: '{"method":"mtp","num_speculative_tokens":4}'
 
 command: |
   vllm serve {model} \

@@ -24,7 +24,7 @@ defaults:
   attention_backend: flashinfer
   reasoning_parser: qwen3
   tool_call_parser: qwen3_coder
-  speculative_config: '{"method":"qwen3_next_mtp","num_speculative_tokens":4}'
+  speculative_config: '{"method":"mtp","num_speculative_tokens":4}'
 
 command: |
   vllm serve {model} \

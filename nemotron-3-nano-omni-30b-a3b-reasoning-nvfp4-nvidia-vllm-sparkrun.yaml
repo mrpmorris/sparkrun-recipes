@@ -27,7 +27,7 @@ defaults:
  kv_cache_dtype: fp8
  load_format: instanttensor
  attention_backend: flashinfer
- speculative_config: '{"method":"qwen3_next_mtp","num_speculative_tokens":4}'
+ speculative_config: '{"method":"mtp","num_speculative_tokens":4}'
 
 command: |
  vllm serve {model} \
