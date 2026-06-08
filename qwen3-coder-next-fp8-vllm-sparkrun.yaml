@@ -15,7 +15,7 @@ defaults:
   host: 0.0.0.0
   tensor_parallel: 1
   pipeline_parallel: 1
-  gpu_memory_utilization: 0.8
+  gpu_memory_utilization: 0.3
   max_model_len: 262144
   served_model_name: qwen3-coder-next-fp8
   reasoning_parser: qwen3
@@ -25,6 +25,7 @@ defaults:
   attention_backend: flashinfer
   max_num_batched_tokens: 32768
   max_num_seqs: 24
+  speculative_config: '{"method":"qwen3_next_mtp","num_speculative_tokens":4}'
 
 command: |
   vllm serve {model} \
@@ -45,4 +46,5 @@ command: |
     --enable-prompt-tokens-details \
     --max-num-batched-tokens {max_num_batched_tokens} \
     --max-num-seqs {max_num_seqs} \
+    --speculative-config '{speculative_config}' \
     --trust-remote-code
