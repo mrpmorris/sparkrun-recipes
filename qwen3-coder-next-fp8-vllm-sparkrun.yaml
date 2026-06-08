@@ -1,0 +1,48 @@
+recipe_version: "2"
+
+model: Qwen/Qwen3-Coder-Next-FP8
+runtime: vllm
+max_nodes: 1
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-tf5
+
+metadata:
+  description: Qwen3 Coder Next FP8 on single DGX Spark with vLLM
+  model_params: 35B
+  model_dtype: fp8
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  pipeline_parallel: 1
+  gpu_memory_utilization: 0.8
+  max_model_len: 262144
+  served_model_name: qwen3-coder-next-fp8
+  reasoning_parser: qwen3
+  tool_call_parser: qwen3_coder
+  kv_cache_dtype: fp8
+  load_format: instanttensor
+  attention_backend: flashinfer
+  max_num_batched_tokens: 32768
+  max_num_seqs: 24
+
+command: |
+  vllm serve {model} \
+    --served-model-name {served_model_name} \
+    --host {host} \
+    --port {port} \
+    --tensor-parallel-size {tensor_parallel} \
+    --pipeline-parallel-size {pipeline_parallel} \
+    --gpu-memory-utilization {gpu_memory_utilization} \
+    --max-model-len {max_model_len} \
+    --reasoning-parser {reasoning_parser} \
+    --enable-auto-tool-choice \
+    --tool-call-parser {tool_call_parser} \
+    --kv-cache-dtype {kv_cache_dtype} \
+    --load-format {load_format} \
+    --attention-backend {attention_backend} \
+    --enable-prefix-caching \
+    --enable-prompt-tokens-details \
+    --max-num-batched-tokens {max_num_batched_tokens} \
+    --max-num-seqs {max_num_seqs} \
+    --trust-remote-code
