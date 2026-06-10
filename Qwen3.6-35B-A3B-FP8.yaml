@@ -21,7 +21,7 @@ defaults:
   host: 0.0.0.0
   tensor_parallel: 1
   pipeline_parallel: 1
-  gpu_memory_utilization: 0.8
+  gpu_memory_utilization: 0.9
   max_model_len: 65536
   max_num_batched_tokens: 8192
   max_num_seqs: 4
@@ -30,7 +30,7 @@ defaults:
   attention_backend: flashinfer
   tool_call_parser: qwen3_coder
   reasoning_parser: qwen3
-  speculative_config: '{"method": "mtp", "num_speculative_tokens": 2}'
+  speculative_config: '{"method": "mtp", "num_speculative_tokens": 3}'
 
 env:
   VLLM_MARLIN_USE_ATOMIC_ADD: '1'
