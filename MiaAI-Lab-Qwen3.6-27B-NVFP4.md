@@ -1,6 +1,6 @@
 # MiaAI-Lab-Qwen3.6-27B-NVFP4.yaml benchmark results
 
-Generated UTC: 2026-07-02T17:22:38.001355+00:00
+Generated UTC: 2026-07-02T22:33:36.728895+00:00
 
 ## Run
 
@@ -14,9 +14,9 @@ Generated UTC: 2026-07-02T17:22:38.001355+00:00
 | Base URL | http://127.0.0.1:8000/v1 |
 | Host | Linux 6.17.0-1026-nvidia aarch64 GNU/Linux |
 | GPU | NVIDIA GB10 |
-| Output dir | /home/mrpmorris/sparkrun-recipes/bench-results/MiaAI-Lab-Qwen3.6-27B-NVFP4.yaml/20260702-163222 |
+| Output dir | /home/mrpmorris/sparkrun-recipes/bench-results/MiaAI-Lab-Qwen3.6-27B-NVFP4.yaml/20260702-214259 |
 | Command | /home/mrpmorris/sparkrun-recipes/benchllm.py --recipe MiaAI-Lab-Qwen3.6-27B-NVFP4.yaml |
-| Total duration | 3016 s |
+| Total duration | 3037 s |
 
 ## Recipe settings
 
@@ -27,7 +27,7 @@ Generated UTC: 2026-07-02T17:22:38.001355+00:00
 | served_model_name | nvidia/Qwen3.6-27B-NVFP4 |
 | tensor_parallel | 1 |
 | pipeline_parallel | 1 |
-| gpu_memory_utilization | 0.4 |
+| gpu_memory_utilization | 0.7 |
 | max_model_len | 262144 |
 | max_num_seqs | 4 |
 | max_num_batched_tokens | 8192 |
@@ -44,14 +44,14 @@ Generated UTC: 2026-07-02T17:22:38.001355+00:00
 
 | Prompt tokens | Server prompt tokens | TTFT s | Prefill tok/s | Generation tok/s | Total s |
 | --- | --- | --- | --- | --- | --- |
-| 32500 | 32517 | 32.437 | 1002.5 | 28.52 | 41.41 |
-| 65000 | 65018 | 71.291 | 912.0 | 28.29 | 80.34 |
-| 97500 | 97513 | 118.814 | 820.7 | 23.57 | 129.67 |
-| 130000 | 130014 | 174.024 | 747.1 | 25.31 | 184.14 |
-| 162500 | 162515 | 236.461 | 687.3 | 24.50 | 246.91 |
-| 195000 | 195016 | 306.559 | 636.1 | 23.89 | 317.27 |
-| 227500 | 227515 | 385.792 | 589.7 | 24.25 | 396.35 |
-| 260000 | 260017 | 470.809 | 552.3 | 21.04 | 482.98 |
+| 32500 | 32515 | 32.279 | 1007.3 | 26.67 | 41.88 |
+| 65000 | 65015 | 71.290 | 912.0 | 30.65 | 79.64 |
+| 97500 | 97516 | 118.500 | 822.9 | 28.84 | 127.38 |
+| 130000 | 130017 | 173.529 | 749.3 | 28.10 | 182.64 |
+| 162500 | 162514 | 235.460 | 690.2 | 25.21 | 245.61 |
+| 195000 | 195012 | 305.368 | 638.6 | 23.70 | 316.17 |
+| 227500 | 227515 | 383.763 | 592.9 | 23.39 | 394.71 |
+| 260000 | 260016 | 469.252 | 554.1 | 22.59 | 480.59 |
 
 TTFT = time to first token. Prefill tok/s = prompt tokens / TTFT. Generation tok/s = output tokens per second after the first token.
 
@@ -59,11 +59,11 @@ TTFT = time to first token. Prefill tok/s = prompt tokens / TTFT. Generation tok
 
 | Task | Description | Metric | Value | Stderr | Samples |
 | --- | --- | --- | --- | --- | --- |
-| mmlu | General knowledge across 57 academic subjects | acc,none | 0.8526 | 0.0145 |  |
-| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,strict-match | 0.6300 | 0.0485 | 100 |
-| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,flexible-extract | 0.6500 | 0.0479 | 100 |
-| humaneval | Coding: write Python functions that pass unit tests | pass@1,create_test | 0.8200 | 0.0386 | 100 |
-| mbpp | Coding: basic Python programming problems, graded by unit tests | pass_at_1,none | 0.3200 | 0.0469 | 100 |
+| mmlu | General knowledge across 57 academic subjects | acc,none | 0.8491 | 0.0148 |  |
+| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,strict-match | 0.6500 | 0.0479 | 100 |
+| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,flexible-extract | 0.6800 | 0.0469 | 100 |
+| humaneval | Coding: write Python functions that pass unit tests | pass@1,create_test | 0.8500 | 0.0359 | 100 |
+| mbpp | Coding: basic Python programming problems, graded by unit tests | pass_at_1,none | 0.3000 | 0.0461 | 100 |
 
 ## Warnings
 

@@ -29,7 +29,7 @@ defaults:
   served_model_name: nvidia/Qwen3.6-27B-NVFP4
   tensor_parallel: 1
   pipeline_parallel: 1
-  gpu_memory_utilization: 0.4
+  gpu_memory_utilization: 0.7
   max_model_len: 262144
   max_num_seqs: 4
   max_num_batched_tokens: 8192
