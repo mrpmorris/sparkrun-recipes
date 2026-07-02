@@ -1,0 +1,76 @@
+{
+  "model": "Qwen/Qwen3.6-35B-A3B-FP8",
+  "base_url": "http://sparky1.local:8000",
+  "requests": 5,
+  "concurrency": 1,
+  "input_words": 1024,
+  "max_tokens": 512,
+  "wall_time_s": 47.691905978999785,
+  "output_tokens": 2560,
+  "output_tokens_per_s": 53.67787148467597,
+  "latency_mean_s": 9.538031731599403,
+  "latency_p50_s": 9.463572094999108,
+  "latency_p95_s": 9.845289932399828,
+  "ttft_mean_s": null,
+  "ttft_p50_s": null,
+  "ttft_p95_s": null,
+  "token_count_estimated": false,
+  "warnings": [],
+  "results": [
+    {
+      "request": 0,
+      "latency_s": 9.434496854999452,
+      "ttft_s": null,
+      "completion_tokens": 512,
+      "prompt_tokens": 1049,
+      "total_tokens": 1561,
+      "token_count_estimated": false,
+      "estimated_by": null,
+      "chars": 0
+    },
+    {
+      "request": 1,
+      "latency_s": 9.910254772999906,
+      "ttft_s": null,
+      "completion_tokens": 512,
+      "prompt_tokens": 1049,
+      "total_tokens": 1561,
+      "token_count_estimated": false,
+      "estimated_by": null,
+      "chars": 0
+    },
+    {
+      "request": 2,
+      "latency_s": 9.585430569999517,
+      "ttft_s": null,
+      "completion_tokens": 512,
+      "prompt_tokens": 1049,
+      "total_tokens": 1561,
+      "token_count_estimated": false,
+      "estimated_by": null,
+      "chars": 0
+    },
+    {
+      "request": 3,
+      "latency_s": 9.296404364999034,
+      "ttft_s": null,
+      "completion_tokens": 512,
+      "prompt_tokens": 1049,
+      "total_tokens": 1561,
+      "token_count_estimated": false,
+      "estimated_by": null,
+      "chars": 0
+    },
+    {
+      "request": 4,
+      "latency_s": 9.463572094999108,
+      "ttft_s": null,
+      "completion_tokens": 512,
+      "prompt_tokens": 1049,
+      "total_tokens": 1561,
+      "token_count_estimated": false,
+      "estimated_by": null,
+      "chars": 0
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+Greedy decoding ON (--greedy): setting n_samples=1, temperature=0
+Initializing a decoder model: Qwen/Qwen3.6-35B-A3B-FP8 ...
+Codegen: BigCodeBench_13 @ Qwen/Qwen3.6-35B-A3B-FP8
+  0%|          | 0/1 [00:00<?, ?it/s]

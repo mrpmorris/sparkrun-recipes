@@ -1,0 +1,52 @@
+{
+  "ok": true,
+  "model": "Qwen/Qwen3.6-35B-A3B-FP8",
+  "base_url": "http://sparky1.local:8000",
+  "target_context_tokens": 32000,
+  "position_percent": 50,
+  "expected": "answer-32000-50-blue-rabbit",
+  "actual": "",
+  "passed": false,
+  "latency_s": 7.973569014999157,
+  "server_prompt_tokens": 32062,
+  "server_completion_tokens": 64,
+  "server_total_tokens": 32126,
+  "error": null,
+  "raw": {
+    "id": "chatcmpl-8e07f1b96f7656b3",
+    "object": "chat.completion",
+    "created": 1782995551,
+    "model": "Qwen/Qwen3.6-35B-A3B-FP8",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": null,
+          "refusal": null,
+          "annotations": null,
+          "audio": null,
+          "function_call": null,
+          "reasoning": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - The user provides a very long prompt consisting of repeated sentences: \"The quick brown fox jumps over the lazy dog.\"\n   - There's a specific instruction embedded: \"IMPORTANT FACT: The secret benchmark answer for NEEDLE-"
+        },
+        "logprobs": null,
+        "finish_reason": "length",
+        "stop_reason": null,
+        "token_ids": null,
+        "routed_experts": null
+      }
+    ],
+    "service_tier": null,
+    "system_fingerprint": "vllm-0.23.1rc1.dev701+g00eb7cefa.d20260701-d61cfe62",
+    "usage": {
+      "prompt_tokens": 32062,
+      "total_tokens": 32126,
+      "completion_tokens": 64,
+      "prompt_tokens_details": null
+    },
+    "prompt_logprobs": null,
+    "prompt_token_ids": null,
+    "prompt_text": null,
+    "kv_transfer_params": null
+  }
+}

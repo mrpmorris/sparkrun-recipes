@@ -1,0 +1,1 @@
+Linux sparky1 6.17.0-1026-nvidia #26-Ubuntu SMP PREEMPT_DYNAMIC Thu Jun 25 00:57:17 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux

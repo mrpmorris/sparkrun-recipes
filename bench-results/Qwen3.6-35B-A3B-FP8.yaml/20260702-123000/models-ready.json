@@ -1,0 +1,38 @@
+{
+  "base_url": "http://sparky1.local:8000",
+  "expected_model": "Qwen/Qwen3.6-35B-A3B-FP8",
+  "matched_model": "Qwen/Qwen3.6-35B-A3B-FP8",
+  "models": [
+    "Qwen/Qwen3.6-35B-A3B-FP8"
+  ],
+  "raw": {
+    "object": "list",
+    "data": [
+      {
+        "id": "Qwen/Qwen3.6-35B-A3B-FP8",
+        "object": "model",
+        "created": 1782995418,
+        "owned_by": "vllm",
+        "root": "Qwen/Qwen3.6-35B-A3B-FP8",
+        "parent": null,
+        "max_model_len": 65536,
+        "permission": [
+          {
+            "id": "modelperm-ab175b6f6c34cd10",
+            "object": "model_permission",
+            "created": 1782995418,
+            "allow_create_engine": false,
+            "allow_sampling": true,
+            "allow_logprobs": true,
+            "allow_search_indices": false,
+            "allow_view": true,
+            "allow_fine_tuning": false,
+            "organization": "*",
+            "group": null,
+            "is_blocking": false
+          }
+        ]
+      }
+    ]
+  }
+}

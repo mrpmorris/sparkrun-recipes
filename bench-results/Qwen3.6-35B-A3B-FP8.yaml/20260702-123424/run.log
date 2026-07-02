@@ -1,0 +1,1261 @@
+Recipe: /home/mrpmorris/sparkrun-recipes/Qwen3.6-35B-A3B-FP8.yaml
+Host: sparky1.local
+Mode: quick
+Output: /home/mrpmorris/sparkrun-recipes/bench-results/Qwen3.6-35B-A3B-FP8.yaml/20260702-123424
+Report: /home/mrpmorris/sparkrun-recipes/Qwen3.6-35B-A3B-FP8.yaml.md
+Hit:1 https://repo.download.nvidia.com/baseos/ubuntu/noble/arm64 noble InRelease
+Hit:2 http://ports.ubuntu.com/ubuntu-ports noble InRelease
+Hit:3 https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/sbsa  InRelease
+Hit:4 https://workbench.download.nvidia.com/stable/linux/debian default InRelease
+Hit:5 http://ports.ubuntu.com/ubuntu-ports noble-updates InRelease
+Hit:6 https://repo.download.nvidia.com/baseos/ubuntu/noble/arm64 noble-updates InRelease
+Hit:7 http://ports.ubuntu.com/ubuntu-ports noble-backports InRelease
+Hit:8 https://developer.download.nvidia.com/hpc-sdk/ubuntu/arm64  InRelease
+Hit:9 https://repo.download.nvidia.com/spark/ubuntu/arm64 noble-updates InRelease
+Hit:10 https://esm.ubuntu.com/apps/ubuntu noble-apps-security InRelease
+Hit:11 http://ports.ubuntu.com/ubuntu-ports noble-security InRelease
+Hit:12 https://esm.ubuntu.com/apps/ubuntu noble-apps-updates InRelease
+Hit:13 https://esm.ubuntu.com/infra/ubuntu noble-infra-security InRelease
+Hit:14 https://snapshot.ppa.launchpadcontent.net/canonical-nvidia/nvidia-desktop-edge/ubuntu noble InRelease
+Hit:15 https://esm.ubuntu.com/infra/ubuntu noble-infra-updates InRelease
+Hit:16 https://snapshot.ppa.launchpadcontent.net/canonical-nvidia/vulkan-packages-nv-desktop/ubuntu noble InRelease
+Reading package lists...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+python3 is already the newest version (3.12.3-0ubuntu2.1).
+python3-venv is already the newest version (3.12.3-0ubuntu2.1).
+python3-pip is already the newest version (24.0+dfsg-1ubuntu1.3+esm3).
+python3-dev is already the newest version (3.12.3-0ubuntu2.1).
+build-essential is already the newest version (12.10ubuntu1).
+git is already the newest version (1:2.43.0-1ubuntu7.3).
+curl is already the newest version (8.5.0-2ubuntu10.10).
+jq is already the newest version (1.7.1-3ubuntu0.24.04.2).
+ca-certificates is already the newest version (20260601~24.04.1).
+coreutils is already the newest version (9.4-3ubuntu6.2).
+0 upgraded, 0 newly installed, 0 to remove and 1 not upgraded.
+Requirement already satisfied: pip in ./.benchllm-venv/lib/python3.12/site-packages (26.1.2)
+Requirement already satisfied: wheel in ./.benchllm-venv/lib/python3.12/site-packages (0.47.0)
+Requirement already satisfied: setuptools in ./.benchllm-venv/lib/python3.12/site-packages (80.10.2)
+Collecting setuptools
+  Using cached setuptools-82.0.1-py3-none-any.whl.metadata (6.5 kB)
+Requirement already satisfied: packaging>=24.0 in ./.benchllm-venv/lib/python3.12/site-packages (from wheel) (26.2)
+Using cached setuptools-82.0.1-py3-none-any.whl (1.0 MB)
+Installing collected packages: setuptools
+  Attempting uninstall: setuptools
+    Found existing installation: setuptools 80.10.2
+    Uninstalling setuptools-80.10.2:
+      Successfully uninstalled setuptools-80.10.2
+ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.
+vllm 0.24.0 requires setuptools<81.0.0,>=77.0.3; python_version > "3.11", but you have setuptools 82.0.1 which is incompatible.
+torch 2.11.0 requires setuptools<82, but you have setuptools 82.0.1 which is incompatible.
+Successfully installed setuptools-82.0.1
+Requirement already satisfied: PyYAML==6.0.3 in ./.benchllm-venv/lib/python3.12/site-packages (6.0.3)
+Requirement already satisfied: requests==2.32.5 in ./.benchllm-venv/lib/python3.12/site-packages (2.32.5)
+Requirement already satisfied: urllib3<3 in ./.benchllm-venv/lib/python3.12/site-packages (2.7.0)
+Requirement already satisfied: charset-normalizer<4 in ./.benchllm-venv/lib/python3.12/site-packages (3.4.7)
+Requirement already satisfied: chardet<6 in ./.benchllm-venv/lib/python3.12/site-packages (5.2.0)
+Requirement already satisfied: tqdm==4.67.1 in ./.benchllm-venv/lib/python3.12/site-packages (4.67.1)
+Requirement already satisfied: openai==2.44.0 in ./.benchllm-venv/lib/python3.12/site-packages (2.44.0)
+Requirement already satisfied: tiktoken==0.13.0 in ./.benchllm-venv/lib/python3.12/site-packages (0.13.0)
+Requirement already satisfied: lm-eval==0.4.12 in ./.benchllm-venv/lib/python3.12/site-packages (from lm-eval[api]==0.4.12) (0.4.12)
+Requirement already satisfied: bigcodebench==0.2.5 in ./.benchllm-venv/lib/python3.12/site-packages (0.2.5)
+Requirement already satisfied: idna<4,>=2.5 in ./.benchllm-venv/lib/python3.12/site-packages (from requests==2.32.5) (3.18)
+Requirement already satisfied: certifi>=2017.4.17 in ./.benchllm-venv/lib/python3.12/site-packages (from requests==2.32.5) (2026.6.17)
+Requirement already satisfied: anyio<5,>=3.5.0 in ./.benchllm-venv/lib/python3.12/site-packages (from openai==2.44.0) (4.14.1)
+Requirement already satisfied: distro<2,>=1.7.0 in ./.benchllm-venv/lib/python3.12/site-packages (from openai==2.44.0) (1.9.0)
+Requirement already satisfied: httpx<1,>=0.23.0 in ./.benchllm-venv/lib/python3.12/site-packages (from openai==2.44.0) (0.28.1)
+Requirement already satisfied: jiter<1,>=0.10.0 in ./.benchllm-venv/lib/python3.12/site-packages (from openai==2.44.0) (0.16.0)
+Requirement already satisfied: pydantic<3,>=1.9.0 in ./.benchllm-venv/lib/python3.12/site-packages (from openai==2.44.0) (2.13.4)
+Requirement already satisfied: sniffio in ./.benchllm-venv/lib/python3.12/site-packages (from openai==2.44.0) (1.3.1)
+Requirement already satisfied: typing-extensions<5,>=4.14 in ./.benchllm-venv/lib/python3.12/site-packages (from openai==2.44.0) (4.16.0)
+Requirement already satisfied: regex in ./.benchllm-venv/lib/python3.12/site-packages (from tiktoken==0.13.0) (2026.6.28)
+Requirement already satisfied: datasets>=2.16.0 in ./.benchllm-venv/lib/python3.12/site-packages (from lm-eval==0.4.12->lm-eval[api]==0.4.12) (5.0.0)
+Requirement already satisfied: numpy in ./.benchllm-venv/lib/python3.12/site-packages (from lm-eval==0.4.12->lm-eval[api]==0.4.12) (2.3.5)
+Requirement already satisfied: evaluate>=0.4.0 in ./.benchllm-venv/lib/python3.12/site-packages (from lm-eval==0.4.12->lm-eval[api]==0.4.12) (0.4.6)
+Requirement already satisfied: jinja2 in ./.benchllm-venv/lib/python3.12/site-packages (from lm-eval==0.4.12->lm-eval[api]==0.4.12) (3.1.6)
+Requirement already satisfied: pytablewriter in ./.benchllm-venv/lib/python3.12/site-packages (from lm-eval==0.4.12->lm-eval[api]==0.4.12) (1.2.1)
+Requirement already satisfied: rouge-score>=0.0.4 in ./.benchllm-venv/lib/python3.12/site-packages (from lm-eval==0.4.12->lm-eval[api]==0.4.12) (0.1.2)
+Requirement already satisfied: sacrebleu>=1.5.0 in ./.benchllm-venv/lib/python3.12/site-packages (from lm-eval==0.4.12->lm-eval[api]==0.4.12) (2.6.0)
+Requirement already satisfied: scikit-learn>=0.24.1 in ./.benchllm-venv/lib/python3.12/site-packages (from lm-eval==0.4.12->lm-eval[api]==0.4.12) (1.9.0)
+Requirement already satisfied: sqlitedict in ./.benchllm-venv/lib/python3.12/site-packages (from lm-eval==0.4.12->lm-eval[api]==0.4.12) (2.1.0)
+Requirement already satisfied: dill in ./.benchllm-venv/lib/python3.12/site-packages (from lm-eval==0.4.12->lm-eval[api]==0.4.12) (0.4.1)
+Requirement already satisfied: word2number in ./.benchllm-venv/lib/python3.12/site-packages (from lm-eval==0.4.12->lm-eval[api]==0.4.12) (1.1)
+Requirement already satisfied: more_itertools in ./.benchllm-venv/lib/python3.12/site-packages (from lm-eval==0.4.12->lm-eval[api]==0.4.12) (11.1.0)
+Requirement already satisfied: appdirs>=1.4.4 in ./.benchllm-venv/lib/python3.12/site-packages (from bigcodebench==0.2.5) (1.4.4)
+Requirement already satisfied: fire>=0.6.0 in ./.benchllm-venv/lib/python3.12/site-packages (from bigcodebench==0.2.5) (0.7.1)
+Requirement already satisfied: multipledispatch>=0.6.0 in ./.benchllm-venv/lib/python3.12/site-packages (from bigcodebench==0.2.5) (1.0.0)
+Requirement already satisfied: pqdm>=0.2.0 in ./.benchllm-venv/lib/python3.12/site-packages (from bigcodebench==0.2.5) (0.2.0)
+Requirement already satisfied: tempdir>=0.7.1 in ./.benchllm-venv/lib/python3.12/site-packages (from bigcodebench==0.2.5) (0.7.1)
+Requirement already satisfied: termcolor>=2.0.0 in ./.benchllm-venv/lib/python3.12/site-packages (from bigcodebench==0.2.5) (3.3.0)
+Requirement already satisfied: tree_sitter>=0.22.0 in ./.benchllm-venv/lib/python3.12/site-packages (from bigcodebench==0.2.5) (0.26.0)
+Requirement already satisfied: tree-sitter-python>=0.21.0 in ./.benchllm-venv/lib/python3.12/site-packages (from bigcodebench==0.2.5) (0.25.0)
+Requirement already satisfied: wget>=3.2 in ./.benchllm-venv/lib/python3.12/site-packages (from bigcodebench==0.2.5) (3.2)
+Requirement already satisfied: transformers in ./.benchllm-venv/lib/python3.12/site-packages (from bigcodebench==0.2.5) (5.12.1)
+Requirement already satisfied: gradio-client in ./.benchllm-venv/lib/python3.12/site-packages (from bigcodebench==0.2.5) (2.5.0)
+Requirement already satisfied: vllm in ./.benchllm-venv/lib/python3.12/site-packages (from bigcodebench==0.2.5) (0.24.0)
+Requirement already satisfied: rich in ./.benchllm-venv/lib/python3.12/site-packages (from bigcodebench==0.2.5) (15.0.0)
+Requirement already satisfied: accelerate>=0.30.1 in ./.benchllm-venv/lib/python3.12/site-packages (from bigcodebench==0.2.5) (1.14.0)
+Requirement already satisfied: anthropic>=0.26.1 in ./.benchllm-venv/lib/python3.12/site-packages (from bigcodebench==0.2.5) (0.115.1)
+Requirement already satisfied: google-genai in ./.benchllm-venv/lib/python3.12/site-packages (from bigcodebench==0.2.5) (2.10.0)
+Requirement already satisfied: mistralai<1.0.0,>=0.2.0 in ./.benchllm-venv/lib/python3.12/site-packages (from bigcodebench==0.2.5) (0.4.2)
+Requirement already satisfied: e2b in ./.benchllm-venv/lib/python3.12/site-packages (from bigcodebench==0.2.5) (2.30.0)
+Requirement already satisfied: aiohttp in ./.benchllm-venv/lib/python3.12/site-packages (from lm-eval[api]==0.4.12) (3.14.1)
+Requirement already satisfied: tenacity in ./.benchllm-venv/lib/python3.12/site-packages (from lm-eval[api]==0.4.12) (9.1.4)
+Requirement already satisfied: httpcore==1.* in ./.benchllm-venv/lib/python3.12/site-packages (from httpx<1,>=0.23.0->openai==2.44.0) (1.0.9)
+Requirement already satisfied: h11>=0.16 in ./.benchllm-venv/lib/python3.12/site-packages (from httpcore==1.*->httpx<1,>=0.23.0->openai==2.44.0) (0.16.0)
+Requirement already satisfied: orjson<3.11,>=3.9.10 in ./.benchllm-venv/lib/python3.12/site-packages (from mistralai<1.0.0,>=0.2.0->bigcodebench==0.2.5) (3.10.18)
+Requirement already satisfied: annotated-types>=0.6.0 in ./.benchllm-venv/lib/python3.12/site-packages (from pydantic<3,>=1.9.0->openai==2.44.0) (0.7.0)
+Requirement already satisfied: pydantic-core==2.46.4 in ./.benchllm-venv/lib/python3.12/site-packages (from pydantic<3,>=1.9.0->openai==2.44.0) (2.46.4)
+Requirement already satisfied: typing-inspection>=0.4.2 in ./.benchllm-venv/lib/python3.12/site-packages (from pydantic<3,>=1.9.0->openai==2.44.0) (0.4.2)
+Requirement already satisfied: packaging>=20.0 in ./.benchllm-venv/lib/python3.12/site-packages (from accelerate>=0.30.1->bigcodebench==0.2.5) (26.2)
+Requirement already satisfied: psutil in ./.benchllm-venv/lib/python3.12/site-packages (from accelerate>=0.30.1->bigcodebench==0.2.5) (7.2.2)
+Requirement already satisfied: torch>=2.0.0 in ./.benchllm-venv/lib/python3.12/site-packages (from accelerate>=0.30.1->bigcodebench==0.2.5) (2.11.0)
+Requirement already satisfied: huggingface_hub>=0.21.0 in ./.benchllm-venv/lib/python3.12/site-packages (from accelerate>=0.30.1->bigcodebench==0.2.5) (1.8.0)
+Requirement already satisfied: safetensors>=0.4.3 in ./.benchllm-venv/lib/python3.12/site-packages (from accelerate>=0.30.1->bigcodebench==0.2.5) (0.8.0)
+Requirement already satisfied: docstring-parser<1,>=0.15 in ./.benchllm-venv/lib/python3.12/site-packages (from anthropic>=0.26.1->bigcodebench==0.2.5) (0.18.0)
+Requirement already satisfied: filelock in ./.benchllm-venv/lib/python3.12/site-packages (from datasets>=2.16.0->lm-eval==0.4.12->lm-eval[api]==0.4.12) (3.29.4)
+Requirement already satisfied: pyarrow>=21.0.0 in ./.benchllm-venv/lib/python3.12/site-packages (from datasets>=2.16.0->lm-eval==0.4.12->lm-eval[api]==0.4.12) (24.0.0)
+Requirement already satisfied: pandas in ./.benchllm-venv/lib/python3.12/site-packages (from datasets>=2.16.0->lm-eval==0.4.12->lm-eval[api]==0.4.12) (3.0.3)
+Requirement already satisfied: xxhash in ./.benchllm-venv/lib/python3.12/site-packages (from datasets>=2.16.0->lm-eval==0.4.12->lm-eval[api]==0.4.12) (3.8.0)
+Requirement already satisfied: multiprocess<0.70.20 in ./.benchllm-venv/lib/python3.12/site-packages (from datasets>=2.16.0->lm-eval==0.4.12->lm-eval[api]==0.4.12) (0.70.19)
+Requirement already satisfied: fsspec<=2026.4.0,>=2023.1.0 in ./.benchllm-venv/lib/python3.12/site-packages (from fsspec[http]<=2026.4.0,>=2023.1.0->datasets>=2.16.0->lm-eval==0.4.12->lm-eval[api]==0.4.12) (2026.4.0)
+Requirement already satisfied: hf-xet<2.0.0,>=1.4.2 in ./.benchllm-venv/lib/python3.12/site-packages (from huggingface_hub>=0.21.0->accelerate>=0.30.1->bigcodebench==0.2.5) (1.5.1)
+Requirement already satisfied: typer in ./.benchllm-venv/lib/python3.12/site-packages (from huggingface_hub>=0.21.0->accelerate>=0.30.1->bigcodebench==0.2.5) (0.26.8)
+Requirement already satisfied: aiohappyeyeballs>=2.5.0 in ./.benchllm-venv/lib/python3.12/site-packages (from aiohttp->lm-eval[api]==0.4.12) (2.7.1)
+Requirement already satisfied: aiosignal>=1.4.0 in ./.benchllm-venv/lib/python3.12/site-packages (from aiohttp->lm-eval[api]==0.4.12) (1.4.0)
+Requirement already satisfied: attrs>=17.3.0 in ./.benchllm-venv/lib/python3.12/site-packages (from aiohttp->lm-eval[api]==0.4.12) (26.1.0)
+Requirement already satisfied: frozenlist>=1.1.1 in ./.benchllm-venv/lib/python3.12/site-packages (from aiohttp->lm-eval[api]==0.4.12) (1.8.0)
+Requirement already satisfied: multidict<7.0,>=4.5 in ./.benchllm-venv/lib/python3.12/site-packages (from aiohttp->lm-eval[api]==0.4.12) (6.7.1)
+Requirement already satisfied: propcache>=0.2.0 in ./.benchllm-venv/lib/python3.12/site-packages (from aiohttp->lm-eval[api]==0.4.12) (0.5.2)
+Requirement already satisfied: yarl<2.0,>=1.17.0 in ./.benchllm-venv/lib/python3.12/site-packages (from aiohttp->lm-eval[api]==0.4.12) (1.24.2)
+Requirement already satisfied: bounded-pool-executor in ./.benchllm-venv/lib/python3.12/site-packages (from pqdm>=0.2.0->bigcodebench==0.2.5) (0.0.3)
+Requirement already satisfied: absl-py in ./.benchllm-venv/lib/python3.12/site-packages (from rouge-score>=0.0.4->lm-eval==0.4.12->lm-eval[api]==0.4.12) (2.4.0)
+Requirement already satisfied: nltk in ./.benchllm-venv/lib/python3.12/site-packages (from rouge-score>=0.0.4->lm-eval==0.4.12->lm-eval[api]==0.4.12) (3.9.4)
+Requirement already satisfied: six>=1.14.0 in ./.benchllm-venv/lib/python3.12/site-packages (from rouge-score>=0.0.4->lm-eval==0.4.12->lm-eval[api]==0.4.12) (1.17.0)
+Requirement already satisfied: portalocker in ./.benchllm-venv/lib/python3.12/site-packages (from sacrebleu>=1.5.0->lm-eval==0.4.12->lm-eval[api]==0.4.12) (3.2.0)
+Requirement already satisfied: tabulate>=0.8.9 in ./.benchllm-venv/lib/python3.12/site-packages (from sacrebleu>=1.5.0->lm-eval==0.4.12->lm-eval[api]==0.4.12) (0.10.0)
+Requirement already satisfied: colorama in ./.benchllm-venv/lib/python3.12/site-packages (from sacrebleu>=1.5.0->lm-eval==0.4.12->lm-eval[api]==0.4.12) (0.4.6)
+Requirement already satisfied: lxml in ./.benchllm-venv/lib/python3.12/site-packages (from sacrebleu>=1.5.0->lm-eval==0.4.12->lm-eval[api]==0.4.12) (6.1.1)
+Requirement already satisfied: scipy>=1.10.0 in ./.benchllm-venv/lib/python3.12/site-packages (from scikit-learn>=0.24.1->lm-eval==0.4.12->lm-eval[api]==0.4.12) (1.18.0)
+Requirement already satisfied: joblib>=1.4.0 in ./.benchllm-venv/lib/python3.12/site-packages (from scikit-learn>=0.24.1->lm-eval==0.4.12->lm-eval[api]==0.4.12) (1.5.3)
+Requirement already satisfied: narwhals>=2.0.1 in ./.benchllm-venv/lib/python3.12/site-packages (from scikit-learn>=0.24.1->lm-eval==0.4.12->lm-eval[api]==0.4.12) (2.23.0)
+Requirement already satisfied: threadpoolctl>=3.5.0 in ./.benchllm-venv/lib/python3.12/site-packages (from scikit-learn>=0.24.1->lm-eval==0.4.12->lm-eval[api]==0.4.12) (3.6.0)
+Collecting setuptools<82 (from torch>=2.0.0->accelerate>=0.30.1->bigcodebench==0.2.5)
+  Using cached setuptools-81.0.0-py3-none-any.whl.metadata (6.6 kB)
+Requirement already satisfied: sympy>=1.13.3 in ./.benchllm-venv/lib/python3.12/site-packages (from torch>=2.0.0->accelerate>=0.30.1->bigcodebench==0.2.5) (1.14.0)
+Requirement already satisfied: networkx>=2.5.1 in ./.benchllm-venv/lib/python3.12/site-packages (from torch>=2.0.0->accelerate>=0.30.1->bigcodebench==0.2.5) (3.6.1)
+Requirement already satisfied: cuda-toolkit==13.0.2 in ./.benchllm-venv/lib/python3.12/site-packages (from cuda-toolkit[cublas,cudart,cufft,cufile,cupti,curand,cusolver,cusparse,nvjitlink,nvrtc,nvtx]==13.0.2; platform_system == "Linux"->torch>=2.0.0->accelerate>=0.30.1->bigcodebench==0.2.5) (13.0.2)
+Requirement already satisfied: cuda-bindings<14,>=13.0.3 in ./.benchllm-venv/lib/python3.12/site-packages (from torch>=2.0.0->accelerate>=0.30.1->bigcodebench==0.2.5) (13.3.1)
+Requirement already satisfied: nvidia-cudnn-cu13==9.19.0.56 in ./.benchllm-venv/lib/python3.12/site-packages (from torch>=2.0.0->accelerate>=0.30.1->bigcodebench==0.2.5) (9.19.0.56)
+Requirement already satisfied: nvidia-cusparselt-cu13==0.8.0 in ./.benchllm-venv/lib/python3.12/site-packages (from torch>=2.0.0->accelerate>=0.30.1->bigcodebench==0.2.5) (0.8.0)
+Requirement already satisfied: nvidia-nccl-cu13==2.28.9 in ./.benchllm-venv/lib/python3.12/site-packages (from torch>=2.0.0->accelerate>=0.30.1->bigcodebench==0.2.5) (2.28.9)
+Requirement already satisfied: nvidia-nvshmem-cu13==3.4.5 in ./.benchllm-venv/lib/python3.12/site-packages (from torch>=2.0.0->accelerate>=0.30.1->bigcodebench==0.2.5) (3.4.5)
+Requirement already satisfied: triton==3.6.0 in ./.benchllm-venv/lib/python3.12/site-packages (from torch>=2.0.0->accelerate>=0.30.1->bigcodebench==0.2.5) (3.6.0)
+Requirement already satisfied: nvidia-cublas==13.1.0.3.* in ./.benchllm-venv/lib/python3.12/site-packages (from cuda-toolkit[cublas,cudart,cufft,cufile,cupti,curand,cusolver,cusparse,nvjitlink,nvrtc,nvtx]==13.0.2; platform_system == "Linux"->torch>=2.0.0->accelerate>=0.30.1->bigcodebench==0.2.5) (13.1.0.3)
+Requirement already satisfied: nvidia-cuda-runtime==13.0.96.* in ./.benchllm-venv/lib/python3.12/site-packages (from cuda-toolkit[cublas,cudart,cufft,cufile,cupti,curand,cusolver,cusparse,nvjitlink,nvrtc,nvtx]==13.0.2; platform_system == "Linux"->torch>=2.0.0->accelerate>=0.30.1->bigcodebench==0.2.5) (13.0.96)
+Requirement already satisfied: nvidia-cufft==12.0.0.61.* in ./.benchllm-venv/lib/python3.12/site-packages (from cuda-toolkit[cublas,cudart,cufft,cufile,cupti,curand,cusolver,cusparse,nvjitlink,nvrtc,nvtx]==13.0.2; platform_system == "Linux"->torch>=2.0.0->accelerate>=0.30.1->bigcodebench==0.2.5) (12.0.0.61)
+Requirement already satisfied: nvidia-cufile==1.15.1.6.* in ./.benchllm-venv/lib/python3.12/site-packages (from cuda-toolkit[cublas,cudart,cufft,cufile,cupti,curand,cusolver,cusparse,nvjitlink,nvrtc,nvtx]==13.0.2; platform_system == "Linux"->torch>=2.0.0->accelerate>=0.30.1->bigcodebench==0.2.5) (1.15.1.6)
+Requirement already satisfied: nvidia-cuda-cupti==13.0.85.* in ./.benchllm-venv/lib/python3.12/site-packages (from cuda-toolkit[cublas,cudart,cufft,cufile,cupti,curand,cusolver,cusparse,nvjitlink,nvrtc,nvtx]==13.0.2; platform_system == "Linux"->torch>=2.0.0->accelerate>=0.30.1->bigcodebench==0.2.5) (13.0.85)
+Requirement already satisfied: nvidia-curand==10.4.0.35.* in ./.benchllm-venv/lib/python3.12/site-packages (from cuda-toolkit[cublas,cudart,cufft,cufile,cupti,curand,cusolver,cusparse,nvjitlink,nvrtc,nvtx]==13.0.2; platform_system == "Linux"->torch>=2.0.0->accelerate>=0.30.1->bigcodebench==0.2.5) (10.4.0.35)
+Requirement already satisfied: nvidia-cusolver==12.0.4.66.* in ./.benchllm-venv/lib/python3.12/site-packages (from cuda-toolkit[cublas,cudart,cufft,cufile,cupti,curand,cusolver,cusparse,nvjitlink,nvrtc,nvtx]==13.0.2; platform_system == "Linux"->torch>=2.0.0->accelerate>=0.30.1->bigcodebench==0.2.5) (12.0.4.66)
+Requirement already satisfied: nvidia-cusparse==12.6.3.3.* in ./.benchllm-venv/lib/python3.12/site-packages (from cuda-toolkit[cublas,cudart,cufft,cufile,cupti,curand,cusolver,cusparse,nvjitlink,nvrtc,nvtx]==13.0.2; platform_system == "Linux"->torch>=2.0.0->accelerate>=0.30.1->bigcodebench==0.2.5) (12.6.3.3)
+Requirement already satisfied: nvidia-nvjitlink==13.0.88.* in ./.benchllm-venv/lib/python3.12/site-packages (from cuda-toolkit[cublas,cudart,cufft,cufile,cupti,curand,cusolver,cusparse,nvjitlink,nvrtc,nvtx]==13.0.2; platform_system == "Linux"->torch>=2.0.0->accelerate>=0.30.1->bigcodebench==0.2.5) (13.0.88)
+Requirement already satisfied: nvidia-cuda-nvrtc==13.0.88.* in ./.benchllm-venv/lib/python3.12/site-packages (from cuda-toolkit[cublas,cudart,cufft,cufile,cupti,curand,cusolver,cusparse,nvjitlink,nvrtc,nvtx]==13.0.2; platform_system == "Linux"->torch>=2.0.0->accelerate>=0.30.1->bigcodebench==0.2.5) (13.0.88)
+Requirement already satisfied: nvidia-nvtx==13.0.85.* in ./.benchllm-venv/lib/python3.12/site-packages (from cuda-toolkit[cublas,cudart,cufft,cufile,cupti,curand,cusolver,cusparse,nvjitlink,nvrtc,nvtx]==13.0.2; platform_system == "Linux"->torch>=2.0.0->accelerate>=0.30.1->bigcodebench==0.2.5) (13.0.85)
+Requirement already satisfied: cuda-pathfinder>=1.4.2 in ./.benchllm-venv/lib/python3.12/site-packages (from cuda-bindings<14,>=13.0.3->torch>=2.0.0->accelerate>=0.30.1->bigcodebench==0.2.5) (1.5.6)
+Requirement already satisfied: mpmath<1.4,>=1.1.0 in ./.benchllm-venv/lib/python3.12/site-packages (from sympy>=1.13.3->torch>=2.0.0->accelerate>=0.30.1->bigcodebench==0.2.5) (1.3.0)
+Requirement already satisfied: dockerfile-parse<3.0.0,>=2.0.1 in ./.benchllm-venv/lib/python3.12/site-packages (from e2b->bigcodebench==0.2.5) (2.0.1)
+Requirement already satisfied: h2<5,>=4 in ./.benchllm-venv/lib/python3.12/site-packages (from e2b->bigcodebench==0.2.5) (4.3.0)
+Requirement already satisfied: protobuf>=4.21.0 in ./.benchllm-venv/lib/python3.12/site-packages (from e2b->bigcodebench==0.2.5) (7.35.1)
+Requirement already satisfied: python-dateutil>=2.8.2 in ./.benchllm-venv/lib/python3.12/site-packages (from e2b->bigcodebench==0.2.5) (2.9.0.post0)
+Requirement already satisfied: wcmatch<11.0,>=10.1 in ./.benchllm-venv/lib/python3.12/site-packages (from e2b->bigcodebench==0.2.5) (10.2)
+Requirement already satisfied: hyperframe<7,>=6.1 in ./.benchllm-venv/lib/python3.12/site-packages (from h2<5,>=4->e2b->bigcodebench==0.2.5) (6.1.0)
+Requirement already satisfied: hpack<5,>=4.1 in ./.benchllm-venv/lib/python3.12/site-packages (from h2<5,>=4->e2b->bigcodebench==0.2.5) (4.2.0)
+Requirement already satisfied: bracex>=2.1.1 in ./.benchllm-venv/lib/python3.12/site-packages (from wcmatch<11.0,>=10.1->e2b->bigcodebench==0.2.5) (3.0)
+Requirement already satisfied: markdown-it-py>=2.2.0 in ./.benchllm-venv/lib/python3.12/site-packages (from rich->bigcodebench==0.2.5) (4.2.0)
+Requirement already satisfied: pygments<3.0.0,>=2.13.0 in ./.benchllm-venv/lib/python3.12/site-packages (from rich->bigcodebench==0.2.5) (2.20.0)
+Requirement already satisfied: mdurl~=0.1 in ./.benchllm-venv/lib/python3.12/site-packages (from markdown-it-py>=2.2.0->rich->bigcodebench==0.2.5) (0.1.2)
+Requirement already satisfied: google-auth<3.0.0,>=2.48.1 in ./.benchllm-venv/lib/python3.12/site-packages (from google-auth[requests]<3.0.0,>=2.48.1->google-genai->bigcodebench==0.2.5) (2.55.1)
+Requirement already satisfied: websockets<17.0,>=13.0.0 in ./.benchllm-venv/lib/python3.12/site-packages (from google-genai->bigcodebench==0.2.5) (16.0)
+Requirement already satisfied: pyasn1-modules>=0.2.1 in ./.benchllm-venv/lib/python3.12/site-packages (from google-auth<3.0.0,>=2.48.1->google-auth[requests]<3.0.0,>=2.48.1->google-genai->bigcodebench==0.2.5) (0.4.2)
+Requirement already satisfied: cryptography>=38.0.3 in ./.benchllm-venv/lib/python3.12/site-packages (from google-auth<3.0.0,>=2.48.1->google-auth[requests]<3.0.0,>=2.48.1->google-genai->bigcodebench==0.2.5) (49.0.0)
+Requirement already satisfied: cffi>=2.0.0 in ./.benchllm-venv/lib/python3.12/site-packages (from cryptography>=38.0.3->google-auth<3.0.0,>=2.48.1->google-auth[requests]<3.0.0,>=2.48.1->google-genai->bigcodebench==0.2.5) (2.0.0)
+Requirement already satisfied: pycparser in ./.benchllm-venv/lib/python3.12/site-packages (from cffi>=2.0.0->cryptography>=38.0.3->google-auth<3.0.0,>=2.48.1->google-auth[requests]<3.0.0,>=2.48.1->google-genai->bigcodebench==0.2.5) (3.0)
+Requirement already satisfied: pyasn1<0.7.0,>=0.6.1 in ./.benchllm-venv/lib/python3.12/site-packages (from pyasn1-modules>=0.2.1->google-auth<3.0.0,>=2.48.1->google-auth[requests]<3.0.0,>=2.48.1->google-genai->bigcodebench==0.2.5) (0.6.3)
+Requirement already satisfied: MarkupSafe>=2.0 in ./.benchllm-venv/lib/python3.12/site-packages (from jinja2->lm-eval==0.4.12->lm-eval[api]==0.4.12) (3.0.3)
+Requirement already satisfied: click in ./.benchllm-venv/lib/python3.12/site-packages (from nltk->rouge-score>=0.0.4->lm-eval==0.4.12->lm-eval[api]==0.4.12) (8.3.3)
+Requirement already satisfied: DataProperty<2,>=1.1.0 in ./.benchllm-venv/lib/python3.12/site-packages (from pytablewriter->lm-eval==0.4.12->lm-eval[api]==0.4.12) (1.1.1)
+Requirement already satisfied: mbstrdecoder<2,>=1.0.0 in ./.benchllm-venv/lib/python3.12/site-packages (from pytablewriter->lm-eval==0.4.12->lm-eval[api]==0.4.12) (1.1.5)
+Requirement already satisfied: pathvalidate<4,>=2.3.0 in ./.benchllm-venv/lib/python3.12/site-packages (from pytablewriter->lm-eval==0.4.12->lm-eval[api]==0.4.12) (3.3.1)
+Requirement already satisfied: tabledata<2,>=1.3.1 in ./.benchllm-venv/lib/python3.12/site-packages (from pytablewriter->lm-eval==0.4.12->lm-eval[api]==0.4.12) (1.3.5)
+Requirement already satisfied: tcolorpy<1,>=0.0.5 in ./.benchllm-venv/lib/python3.12/site-packages (from pytablewriter->lm-eval==0.4.12->lm-eval[api]==0.4.12) (0.1.7)
+Requirement already satisfied: typepy<2,>=1.3.2 in ./.benchllm-venv/lib/python3.12/site-packages (from typepy[datetime]<2,>=1.3.2->pytablewriter->lm-eval==0.4.12->lm-eval[api]==0.4.12) (1.3.5)
+Requirement already satisfied: pytz>=2018.9 in ./.benchllm-venv/lib/python3.12/site-packages (from typepy[datetime]<2,>=1.3.2->pytablewriter->lm-eval==0.4.12->lm-eval[api]==0.4.12) (2026.2)
+Requirement already satisfied: tokenizers<=0.23.0,>=0.22.0 in ./.benchllm-venv/lib/python3.12/site-packages (from transformers->bigcodebench==0.2.5) (0.22.2)
+Requirement already satisfied: shellingham>=1.3.0 in ./.benchllm-venv/lib/python3.12/site-packages (from typer->huggingface_hub>=0.21.0->accelerate>=0.30.1->bigcodebench==0.2.5) (1.5.4)
+Requirement already satisfied: annotated-doc>=0.0.2 in ./.benchllm-venv/lib/python3.12/site-packages (from typer->huggingface_hub>=0.21.0->accelerate>=0.30.1->bigcodebench==0.2.5) (0.0.4)
+Requirement already satisfied: cachetools in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (7.1.4)
+Requirement already satisfied: sentencepiece in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (0.2.1)
+Requirement already satisfied: blake3 in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (1.0.9)
+Requirement already satisfied: py-cpuinfo in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (9.0.0)
+Requirement already satisfied: fastapi<0.137.0,>=0.133.0 in ./.benchllm-venv/lib/python3.12/site-packages (from fastapi[standard]<0.137.0,>=0.133.0->vllm->bigcodebench==0.2.5) (0.136.3)
+Requirement already satisfied: starlette>=1.0.1 in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (1.3.1)
+Requirement already satisfied: prometheus_client>=0.18.0 in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (0.25.0)
+Requirement already satisfied: pillow in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (12.3.0)
+Requirement already satisfied: prometheus-fastapi-instrumentator>=8.0.0 in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (8.0.2)
+Requirement already satisfied: lm-format-enforcer==0.11.3 in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (0.11.3)
+Requirement already satisfied: llguidance<1.8.0,>=1.7.0 in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (1.7.6)
+Requirement already satisfied: outlines_core==0.2.14 in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (0.2.14)
+Requirement already satisfied: diskcache==5.6.3 in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (5.6.3)
+Requirement already satisfied: lark==1.2.2 in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (1.2.2)
+Requirement already satisfied: xgrammar<1.0.0,>=0.2.1 in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (0.2.3)
+Requirement already satisfied: partial-json-parser in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (0.2.1.1.post7)
+Requirement already satisfied: jsonschema>=4.23.0 in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (4.26.0)
+Requirement already satisfied: pyzmq>=25.0.0 in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (27.1.0)
+Requirement already satisfied: msgspec in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (0.21.1)
+Requirement already satisfied: mistral_common>=1.11.3 in ./.benchllm-venv/lib/python3.12/site-packages (from mistral_common[image]>=1.11.3->vllm->bigcodebench==0.2.5) (1.11.5)
+Requirement already satisfied: opencv-python-headless>=4.13.0 in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (5.0.0.93)
+  Using cached setuptools-80.10.2-py3-none-any.whl.metadata (6.6 kB)
+Requirement already satisfied: einops in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (0.8.2)
+Requirement already satisfied: compressed-tensors==0.17.0 in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (0.17.0)
+Requirement already satisfied: depyf==0.20.0 in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (0.20.0)
+Requirement already satisfied: cloudpickle in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (3.1.2)
+Requirement already satisfied: watchfiles in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (1.2.0)
+Requirement already satisfied: python-json-logger in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (4.1.0)
+Requirement already satisfied: ninja in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (1.13.0)
+Requirement already satisfied: pybase64 in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (1.4.3)
+Requirement already satisfied: cbor2 in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (6.1.2)
+Requirement already satisfied: ijson in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (3.5.0)
+Requirement already satisfied: setproctitle in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (1.3.7)
+Requirement already satisfied: openai-harmony>=0.0.3 in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (0.0.8)
+Requirement already satisfied: model-hosting-container-standards<1.0.0,>=0.1.14 in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (0.1.16)
+Requirement already satisfied: mcp in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (1.28.1)
+Requirement already satisfied: opentelemetry-sdk>=1.27.0 in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (1.43.0)
+Requirement already satisfied: opentelemetry-api>=1.27.0 in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (1.43.0)
+Requirement already satisfied: opentelemetry-exporter-otlp>=1.27.0 in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (1.43.0)
+Requirement already satisfied: opentelemetry-semantic-conventions-ai>=0.4.1 in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (0.5.1)
+Requirement already satisfied: numba==0.65.0 in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (0.65.0)
+Requirement already satisfied: torchaudio==2.11.0 in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (2.11.0)
+Requirement already satisfied: torchvision==0.26.0 in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (0.26.0)
+Requirement already satisfied: flashinfer-python==0.6.12 in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (0.6.12)
+Requirement already satisfied: flashinfer-cubin==0.6.12 in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (0.6.12)
+Requirement already satisfied: apache-tvm-ffi==0.1.9 in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (0.1.9)
+Requirement already satisfied: tilelang==0.1.9 in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (0.1.9)
+Requirement already satisfied: nvidia-cudnn-frontend>=1.19.1 in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (1.25.0)
+Requirement already satisfied: fastsafetensors>=0.3.2 in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (0.3.2)
+Requirement already satisfied: nvidia-cutlass-dsl==4.5.2 in ./.benchllm-venv/lib/python3.12/site-packages (from nvidia-cutlass-dsl[cu13]==4.5.2->vllm->bigcodebench==0.2.5) (4.5.2)
+Requirement already satisfied: quack-kernels>=0.3.3 in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (0.5.0)
+Requirement already satisfied: tokenspeed-mla==0.1.2 in ./.benchllm-venv/lib/python3.12/site-packages (from vllm->bigcodebench==0.2.5) (0.1.2)
+Requirement already satisfied: humming-kernels==0.1.6 in ./.benchllm-venv/lib/python3.12/site-packages (from humming-kernels[cu13]==0.1.6->vllm->bigcodebench==0.2.5) (0.1.6)
+Requirement already satisfied: loguru in ./.benchllm-venv/lib/python3.12/site-packages (from compressed-tensors==0.17.0->vllm->bigcodebench==0.2.5) (0.7.3)
+Requirement already satisfied: astor in ./.benchllm-venv/lib/python3.12/site-packages (from depyf==0.20.0->vllm->bigcodebench==0.2.5) (0.8.1)
+Requirement already satisfied: cuda-tile[tileiras] in ./.benchllm-venv/lib/python3.12/site-packages (from flashinfer-python==0.6.12->vllm->bigcodebench==0.2.5) (1.3.0)
+Requirement already satisfied: nvidia-ml-py in ./.benchllm-venv/lib/python3.12/site-packages (from flashinfer-python==0.6.12->vllm->bigcodebench==0.2.5) (13.610.43)
+Requirement already satisfied: pyelftools in ./.benchllm-venv/lib/python3.12/site-packages (from humming-kernels==0.1.6->humming-kernels[cu13]==0.1.6->vllm->bigcodebench==0.2.5) (0.33)
+Requirement already satisfied: nvidia-cuda-cccl in ./.benchllm-venv/lib/python3.12/site-packages (from humming-kernels[cu13]==0.1.6->vllm->bigcodebench==0.2.5) (13.3.3.4.1)
+Requirement already satisfied: nvidia-cuda-nvcc in ./.benchllm-venv/lib/python3.12/site-packages (from humming-kernels[cu13]==0.1.6->vllm->bigcodebench==0.2.5) (13.2.78)
+Requirement already satisfied: interegular>=0.3.2 in ./.benchllm-venv/lib/python3.12/site-packages (from lm-format-enforcer==0.11.3->vllm->bigcodebench==0.2.5) (0.3.3)
+Requirement already satisfied: llvmlite<0.48,>=0.47.0dev0 in ./.benchllm-venv/lib/python3.12/site-packages (from numba==0.65.0->vllm->bigcodebench==0.2.5) (0.47.0)
+Requirement already satisfied: nvidia-cutlass-dsl-libs-base==4.5.2 in ./.benchllm-venv/lib/python3.12/site-packages (from nvidia-cutlass-dsl==4.5.2->nvidia-cutlass-dsl[cu13]==4.5.2->vllm->bigcodebench==0.2.5) (4.5.2)
+Requirement already satisfied: cuda-python>=12.8 in ./.benchllm-venv/lib/python3.12/site-packages (from nvidia-cutlass-dsl-libs-base==4.5.2->nvidia-cutlass-dsl==4.5.2->nvidia-cutlass-dsl[cu13]==4.5.2->vllm->bigcodebench==0.2.5) (13.3.1)
+Requirement already satisfied: nvidia-cutlass-dsl-libs-cu13==4.5.2 in ./.benchllm-venv/lib/python3.12/site-packages (from nvidia-cutlass-dsl[cu13]==4.5.2->vllm->bigcodebench==0.2.5) (4.5.2)
+Requirement already satisfied: torch-c-dlpack-ext in ./.benchllm-venv/lib/python3.12/site-packages (from tilelang==0.1.9->vllm->bigcodebench==0.2.5) (0.1.5)
+Requirement already satisfied: ml-dtypes in ./.benchllm-venv/lib/python3.12/site-packages (from tilelang==0.1.9->vllm->bigcodebench==0.2.5) (0.5.4)
+Requirement already satisfied: z3-solver<4.15.5,>=4.13.0 in ./.benchllm-venv/lib/python3.12/site-packages (from tilelang==0.1.9->vllm->bigcodebench==0.2.5) (4.15.4.0)
+Requirement already satisfied: tokenspeed-triton>=3.7.10.post20260505 in ./.benchllm-venv/lib/python3.12/site-packages (from tokenspeed-mla==0.1.2->vllm->bigcodebench==0.2.5) (3.7.10.post20260531)
+Requirement already satisfied: fastapi-cli>=0.0.8 in ./.benchllm-venv/lib/python3.12/site-packages (from fastapi-cli[standard]>=0.0.8; extra == "standard"->fastapi[standard]<0.137.0,>=0.133.0->vllm->bigcodebench==0.2.5) (0.0.27)
+Requirement already satisfied: fastar>=0.9.0 in ./.benchllm-venv/lib/python3.12/site-packages (from fastapi[standard]<0.137.0,>=0.133.0->vllm->bigcodebench==0.2.5) (0.11.0)
+Requirement already satisfied: python-multipart>=0.0.18 in ./.benchllm-venv/lib/python3.12/site-packages (from fastapi[standard]<0.137.0,>=0.133.0->vllm->bigcodebench==0.2.5) (0.0.32)
+Requirement already satisfied: email-validator>=2.0.0 in ./.benchllm-venv/lib/python3.12/site-packages (from fastapi[standard]<0.137.0,>=0.133.0->vllm->bigcodebench==0.2.5) (2.3.0)
+Requirement already satisfied: uvicorn>=0.12.0 in ./.benchllm-venv/lib/python3.12/site-packages (from uvicorn[standard]>=0.12.0; extra == "standard"->fastapi[standard]<0.137.0,>=0.133.0->vllm->bigcodebench==0.2.5) (0.49.0)
+Requirement already satisfied: pydantic-settings>=2.0.0 in ./.benchllm-venv/lib/python3.12/site-packages (from fastapi[standard]<0.137.0,>=0.133.0->vllm->bigcodebench==0.2.5) (2.14.2)
+Requirement already satisfied: pydantic-extra-types>=2.0.0 in ./.benchllm-venv/lib/python3.12/site-packages (from fastapi[standard]<0.137.0,>=0.133.0->vllm->bigcodebench==0.2.5) (2.11.1)
+Requirement already satisfied: jmespath in ./.benchllm-venv/lib/python3.12/site-packages (from model-hosting-container-standards<1.0.0,>=0.1.14->vllm->bigcodebench==0.2.5) (1.1.0)
+Requirement already satisfied: supervisor>=4.2.0 in ./.benchllm-venv/lib/python3.12/site-packages (from model-hosting-container-standards<1.0.0,>=0.1.14->vllm->bigcodebench==0.2.5) (4.3.0)
+Requirement already satisfied: cuda-core~=1.0.0 in ./.benchllm-venv/lib/python3.12/site-packages (from cuda-python>=12.8->nvidia-cutlass-dsl-libs-base==4.5.2->nvidia-cutlass-dsl==4.5.2->nvidia-cutlass-dsl[cu13]==4.5.2->vllm->bigcodebench==0.2.5) (1.0.1)
+Requirement already satisfied: dnspython>=2.0.0 in ./.benchllm-venv/lib/python3.12/site-packages (from email-validator>=2.0.0->fastapi[standard]<0.137.0,>=0.133.0->vllm->bigcodebench==0.2.5) (2.8.0)
+Requirement already satisfied: rich-toolkit>=0.14.8 in ./.benchllm-venv/lib/python3.12/site-packages (from fastapi-cli>=0.0.8->fastapi-cli[standard]>=0.0.8; extra == "standard"->fastapi[standard]<0.137.0,>=0.133.0->vllm->bigcodebench==0.2.5) (0.20.1)
+Requirement already satisfied: fastapi-cloud-cli>=0.1.1 in ./.benchllm-venv/lib/python3.12/site-packages (from fastapi-cli[standard]>=0.0.8; extra == "standard"->fastapi[standard]<0.137.0,>=0.133.0->vllm->bigcodebench==0.2.5) (0.22.1)
+Requirement already satisfied: rignore>=0.5.1 in ./.benchllm-venv/lib/python3.12/site-packages (from fastapi-cloud-cli>=0.1.1->fastapi-cli[standard]>=0.0.8; extra == "standard"->fastapi[standard]<0.137.0,>=0.133.0->vllm->bigcodebench==0.2.5) (0.7.6)
+Requirement already satisfied: sentry-sdk>=2.20.0 in ./.benchllm-venv/lib/python3.12/site-packages (from fastapi-cloud-cli>=0.1.1->fastapi-cli[standard]>=0.0.8; extra == "standard"->fastapi[standard]<0.137.0,>=0.133.0->vllm->bigcodebench==0.2.5) (2.64.0)
+Requirement already satisfied: detect-installer>=0.1.0 in ./.benchllm-venv/lib/python3.12/site-packages (from fastapi-cloud-cli>=0.1.1->fastapi-cli[standard]>=0.0.8; extra == "standard"->fastapi[standard]<0.137.0,>=0.133.0->vllm->bigcodebench==0.2.5) (0.1.0)
+Requirement already satisfied: jsonschema-specifications>=2023.03.6 in ./.benchllm-venv/lib/python3.12/site-packages (from jsonschema>=4.23.0->vllm->bigcodebench==0.2.5) (2025.9.1)
+Requirement already satisfied: referencing>=0.28.4 in ./.benchllm-venv/lib/python3.12/site-packages (from jsonschema>=4.23.0->vllm->bigcodebench==0.2.5) (0.37.0)
+Requirement already satisfied: rpds-py>=0.25.0 in ./.benchllm-venv/lib/python3.12/site-packages (from jsonschema>=4.23.0->vllm->bigcodebench==0.2.5) (2026.6.3)
+Requirement already satisfied: opentelemetry-exporter-otlp-proto-grpc==1.43.0 in ./.benchllm-venv/lib/python3.12/site-packages (from opentelemetry-exporter-otlp>=1.27.0->vllm->bigcodebench==0.2.5) (1.43.0)
+Requirement already satisfied: opentelemetry-exporter-otlp-proto-http==1.43.0 in ./.benchllm-venv/lib/python3.12/site-packages (from opentelemetry-exporter-otlp>=1.27.0->vllm->bigcodebench==0.2.5) (1.43.0)
+Requirement already satisfied: googleapis-common-protos~=1.57 in ./.benchllm-venv/lib/python3.12/site-packages (from opentelemetry-exporter-otlp-proto-grpc==1.43.0->opentelemetry-exporter-otlp>=1.27.0->vllm->bigcodebench==0.2.5) (1.75.0)
+Requirement already satisfied: grpcio<2.0.0,>=1.63.2 in ./.benchllm-venv/lib/python3.12/site-packages (from opentelemetry-exporter-otlp-proto-grpc==1.43.0->opentelemetry-exporter-otlp>=1.27.0->vllm->bigcodebench==0.2.5) (1.81.1)
+Requirement already satisfied: opentelemetry-exporter-otlp-proto-common==1.43.0 in ./.benchllm-venv/lib/python3.12/site-packages (from opentelemetry-exporter-otlp-proto-grpc==1.43.0->opentelemetry-exporter-otlp>=1.27.0->vllm->bigcodebench==0.2.5) (1.43.0)
+Requirement already satisfied: opentelemetry-proto==1.43.0 in ./.benchllm-venv/lib/python3.12/site-packages (from opentelemetry-exporter-otlp-proto-grpc==1.43.0->opentelemetry-exporter-otlp>=1.27.0->vllm->bigcodebench==0.2.5) (1.43.0)
+Requirement already satisfied: opentelemetry-semantic-conventions==0.64b0 in ./.benchllm-venv/lib/python3.12/site-packages (from opentelemetry-sdk>=1.27.0->vllm->bigcodebench==0.2.5) (0.64b0)
+Requirement already satisfied: pycountry>=23 in ./.benchllm-venv/lib/python3.12/site-packages (from pydantic-extra-types[pycountry]>=2.10.5->mistral_common>=1.11.3->mistral_common[image]>=1.11.3->vllm->bigcodebench==0.2.5) (26.2.16)
+Requirement already satisfied: python-dotenv>=0.21.0 in ./.benchllm-venv/lib/python3.12/site-packages (from pydantic-settings>=2.0.0->fastapi[standard]<0.137.0,>=0.133.0->vllm->bigcodebench==0.2.5) (1.2.2)
+Requirement already satisfied: httptools>=0.8.0 in ./.benchllm-venv/lib/python3.12/site-packages (from uvicorn[standard]>=0.12.0; extra == "standard"->fastapi[standard]<0.137.0,>=0.133.0->vllm->bigcodebench==0.2.5) (0.8.0)
+Requirement already satisfied: uvloop>=0.15.1 in ./.benchllm-venv/lib/python3.12/site-packages (from uvicorn[standard]>=0.12.0; extra == "standard"->fastapi[standard]<0.137.0,>=0.133.0->vllm->bigcodebench==0.2.5) (0.22.1)
+Requirement already satisfied: nvidia-cuda-tileiras<13.3,>=13.2 in ./.benchllm-venv/lib/python3.12/site-packages (from cuda-tile[tileiras]->flashinfer-python==0.6.12->vllm->bigcodebench==0.2.5) (13.2.78)
+Requirement already satisfied: nvidia-nvvm<13.3,>=13.2 in ./.benchllm-venv/lib/python3.12/site-packages (from cuda-tile[tileiras]->flashinfer-python==0.6.12->vllm->bigcodebench==0.2.5) (13.2.78)
+Requirement already satisfied: nvidia-cuda-crt in ./.benchllm-venv/lib/python3.12/site-packages (from nvidia-cuda-nvcc->humming-kernels[cu13]==0.1.6->vllm->bigcodebench==0.2.5) (13.3.73)
+Requirement already satisfied: httpx-sse>=0.4 in ./.benchllm-venv/lib/python3.12/site-packages (from mcp->vllm->bigcodebench==0.2.5) (0.4.3)
+Requirement already satisfied: pyjwt>=2.10.1 in ./.benchllm-venv/lib/python3.12/site-packages (from pyjwt[crypto]>=2.10.1->mcp->vllm->bigcodebench==0.2.5) (2.13.0)
+Requirement already satisfied: sse-starlette>=1.6.1 in ./.benchllm-venv/lib/python3.12/site-packages (from mcp->vllm->bigcodebench==0.2.5) (3.4.5)
+Using cached setuptools-80.10.2-py3-none-any.whl (1.1 MB)
+Installing collected packages: setuptools
+  Attempting uninstall: setuptools
+    Found existing installation: setuptools 82.0.1
+    Uninstalling setuptools-82.0.1:
+      Successfully uninstalled setuptools-82.0.1
+Successfully installed setuptools-80.10.2
+Recipe model: Qwen/Qwen3.6-35B-A3B-FP8
+Recipe port: 8000
+Base URL: http://sparky1.local:8000
+
+Starting recipe with sparkrun
+Command: sparkrun run '/home/mrpmorris/sparkrun-recipes/Qwen3.6-35B-A3B-FP8.yaml' --hosts 'sparky1.local' --ensure --no-follow
+
+Waiting for http://sparky1.local:8000/v1/models to show Qwen/Qwen3.6-35B-A3B-FP8
+models: ['Qwen/Qwen3.6-35B-A3B-FP8']
+
+Patching BigCodeBench null-content handling
+{
+  "patched": false,
+  "file": "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/bigcodebench/provider/openai.py",
+  "reason": "pattern not found or already patched"
+}
+
+Smoke test
+{"id":"chatcmpl-ace2e850808a274e","object":"chat.completion","created":1782995678,"model":"Qwen/Qwen3.6-35B-A3B-FP8","choices":[{"index":0,"message":{"role":"assistant","content":null,"refusal":null,"annotations":null,"audio":null,"function_call":null,"reasoning":"Here's a thinking process:\n\n1"},"logprobs":null,"finish_reason":"length","stop_reason":null,"token_ids":null,"routed_experts":null}],"service_tier":null,"system_fingerprint":"vllm-0.23.1rc1.dev701+g00eb7cefa.d20260701-d61cfe62","usage":{"prompt_tokens":15,"total_tokens":23,"completion_tokens":8,"prompt_tokens_details":null},"prompt_logprobs":null,"prompt_token_ids":null,"prompt_text":null,"kv_transfer_params":null}
+
+Running speed benchmarks by prompt size
+
+Speed context tokens: 512
+done 1/1 ok=True
+{
+  "model": "Qwen/Qwen3.6-35B-A3B-FP8",
+  "base_url": "http://sparky1.local:8000",
+  "requests": 1,
+  "ok_requests": 1,
+  "failed_requests": 0,
+  "concurrency": 1,
+  "target_context_tokens": 512,
+  "max_tokens": 512,
+  "wall_time_s": 8.121949593998579,
+  "output_tokens": 512,
+  "output_tokens_per_s": 63.03905165556849,
+  "latency_mean_s": 8.116295947000253,
+  "latency_p50_s": 8.116295947000253,
+  "latency_p95_s": 8.116295947000253,
+  "ttft_mean_s": null,
+  "ttft_p50_s": null,
+  "ttft_p95_s": null,
+  "server_prompt_tokens_mean": 524,
+  "token_count_estimated": false,
+  "warnings": [],
+  "results": [
+    {
+      "request": 0,
+      "ok": true,
+      "target_context_tokens": 512,
+      "local_prompt_token_estimate": 512,
+      "server_prompt_tokens": 524,
+      "server_total_tokens": 1036,
+      "latency_s": 8.116295947000253,
+      "ttft_s": null,
+      "completion_tokens": 512,
+      "token_count_estimated": false,
+      "estimated_by": null,
+      "chars": 0,
+      "error": null
+    }
+  ]
+}
+
+Speed context tokens: 2000
+done 1/1 ok=True
+{
+  "model": "Qwen/Qwen3.6-35B-A3B-FP8",
+  "base_url": "http://sparky1.local:8000",
+  "requests": 1,
+  "ok_requests": 1,
+  "failed_requests": 0,
+  "concurrency": 1,
+  "target_context_tokens": 2000,
+  "max_tokens": 512,
+  "wall_time_s": 9.647443331999966,
+  "output_tokens": 512,
+  "output_tokens_per_s": 53.07105544758455,
+  "latency_mean_s": 9.638562071000706,
+  "latency_p50_s": 9.638562071000706,
+  "latency_p95_s": 9.638562071000706,
+  "ttft_mean_s": null,
+  "ttft_p50_s": null,
+  "ttft_p95_s": null,
+  "server_prompt_tokens_mean": 2012,
+  "token_count_estimated": false,
+  "warnings": [],
+  "results": [
+    {
+      "request": 0,
+      "ok": true,
+      "target_context_tokens": 2000,
+      "local_prompt_token_estimate": 2000,
+      "server_prompt_tokens": 2012,
+      "server_total_tokens": 2524,
+      "latency_s": 9.638562071000706,
+      "ttft_s": null,
+      "completion_tokens": 512,
+      "token_count_estimated": false,
+      "estimated_by": null,
+      "chars": 0,
+      "error": null
+    }
+  ]
+}
+
+Speed context tokens: 8000
+done 1/1 ok=True
+{
+  "model": "Qwen/Qwen3.6-35B-A3B-FP8",
+  "base_url": "http://sparky1.local:8000",
+  "requests": 1,
+  "ok_requests": 1,
+  "failed_requests": 0,
+  "concurrency": 1,
+  "target_context_tokens": 8000,
+  "max_tokens": 512,
+  "wall_time_s": 10.483627711999361,
+  "output_tokens": 512,
+  "output_tokens_per_s": 48.8380562592827,
+  "latency_mean_s": 10.476762049000172,
+  "latency_p50_s": 10.476762049000172,
+  "latency_p95_s": 10.476762049000172,
+  "ttft_mean_s": null,
+  "ttft_p50_s": null,
+  "ttft_p95_s": null,
+  "server_prompt_tokens_mean": 8012,
+  "token_count_estimated": false,
+  "warnings": [],
+  "results": [
+    {
+      "request": 0,
+      "ok": true,
+      "target_context_tokens": 8000,
+      "local_prompt_token_estimate": 8000,
+      "server_prompt_tokens": 8012,
+      "server_total_tokens": 8524,
+      "latency_s": 10.476762049000172,
+      "ttft_s": null,
+      "completion_tokens": 512,
+      "token_count_estimated": false,
+      "estimated_by": null,
+      "chars": 0,
+      "error": null
+    }
+  ]
+}
+
+Speed context tokens: 32000
+done 1/1 ok=True
+{
+  "model": "Qwen/Qwen3.6-35B-A3B-FP8",
+  "base_url": "http://sparky1.local:8000",
+  "requests": 1,
+  "ok_requests": 1,
+  "failed_requests": 0,
+  "concurrency": 1,
+  "target_context_tokens": 32000,
+  "max_tokens": 512,
+  "wall_time_s": 15.880161283001144,
+  "output_tokens": 512,
+  "output_tokens_per_s": 32.24148614586606,
+  "latency_mean_s": 15.87018976499894,
+  "latency_p50_s": 15.87018976499894,
+  "latency_p95_s": 15.87018976499894,
+  "ttft_mean_s": null,
+  "ttft_p50_s": null,
+  "ttft_p95_s": null,
+  "server_prompt_tokens_mean": 32013,
+  "token_count_estimated": false,
+  "warnings": [],
+  "results": [
+    {
+      "request": 0,
+      "ok": true,
+      "target_context_tokens": 32000,
+      "local_prompt_token_estimate": 32000,
+      "server_prompt_tokens": 32013,
+      "server_total_tokens": 32525,
+      "latency_s": 15.87018976499894,
+      "ttft_s": null,
+      "completion_tokens": 512,
+      "token_count_estimated": false,
+      "estimated_by": null,
+      "chars": 0,
+      "error": null
+    }
+  ]
+}
+
+Running throughput benchmark
+done 1/16 ok=True
+done 2/16 ok=True
+done 3/16 ok=True
+done 4/16 ok=True
+done 5/16 ok=True
+done 6/16 ok=True
+done 7/16 ok=True
+done 8/16 ok=True
+done 9/16 ok=True
+done 10/16 ok=True
+done 11/16 ok=True
+done 12/16 ok=True
+done 13/16 ok=True
+done 14/16 ok=True
+done 15/16 ok=True
+done 16/16 ok=True
+{
+  "model": "Qwen/Qwen3.6-35B-A3B-FP8",
+  "base_url": "http://sparky1.local:8000",
+  "requests": 16,
+  "ok_requests": 16,
+  "failed_requests": 0,
+  "concurrency": 8,
+  "target_context_tokens": 1024,
+  "max_tokens": 512,
+  "wall_time_s": 59.47178687199994,
+  "output_tokens": 8192,
+  "output_tokens_per_s": 137.74598731380806,
+  "latency_mean_s": 25.780974829,
+  "latency_p50_s": 29.252528329999222,
+  "latency_p95_s": 30.231670862249302,
+  "ttft_mean_s": null,
+  "ttft_p50_s": null,
+  "ttft_p95_s": null,
+  "server_prompt_tokens_mean": 1036.375,
+  "token_count_estimated": false,
+  "warnings": [],
+  "results": [
+    {
+      "request": 0,
+      "ok": true,
+      "target_context_tokens": 1024,
+      "local_prompt_token_estimate": 1024,
+      "server_prompt_tokens": 1036,
+      "server_total_tokens": 1548,
+      "latency_s": 13.789970436000658,
+      "ttft_s": null,
+      "completion_tokens": 512,
+      "token_count_estimated": false,
+      "estimated_by": null,
+      "chars": 0,
+      "error": null
+    },
+    {
+      "request": 1,
+      "ok": true,
+      "target_context_tokens": 1024,
+      "local_prompt_token_estimate": 1024,
+      "server_prompt_tokens": 1036,
+      "server_total_tokens": 1548,
+      "latency_s": 30.08597421900049,
+      "ttft_s": null,
+      "completion_tokens": 512,
+      "token_count_estimated": false,
+      "estimated_by": null,
+      "chars": 0,
+      "error": null
+    },
+    {
+      "request": 2,
+      "ok": true,
+      "target_context_tokens": 1024,
+      "local_prompt_token_estimate": 1024,
+      "server_prompt_tokens": 1036,
+      "server_total_tokens": 1548,
+      "latency_s": 28.91079653700035,
+      "ttft_s": null,
+      "completion_tokens": 512,
+      "token_count_estimated": false,
+      "estimated_by": null,
+      "chars": 0,
+      "error": null
+    },
+    {
+      "request": 3,
+      "ok": true,
+      "target_context_tokens": 1024,
+      "local_prompt_token_estimate": 1024,
+      "server_prompt_tokens": 1036,
+      "server_total_tokens": 1548,
+      "latency_s": 14.847342529999878,
+      "ttft_s": null,
+      "completion_tokens": 512,
+      "token_count_estimated": false,
+      "estimated_by": null,
+      "chars": 0,
+      "error": null
+    },
+    {
+      "request": 4,
+      "ok": true,
+      "target_context_tokens": 1024,
+      "local_prompt_token_estimate": 1024,
+      "server_prompt_tokens": 1036,
+      "server_total_tokens": 1548,
+      "latency_s": 29.564430667000124,
+      "ttft_s": null,
+      "completion_tokens": 512,
+      "token_count_estimated": false,
+      "estimated_by": null,
+      "chars": 0,
+      "error": null
+    },
+    {
+      "request": 5,
+      "ok": true,
+      "target_context_tokens": 1024,
+      "local_prompt_token_estimate": 1024,
+      "server_prompt_tokens": 1036,
+      "server_total_tokens": 1548,
+      "latency_s": 15.131144208000478,
+      "ttft_s": null,
+      "completion_tokens": 512,
+      "token_count_estimated": false,
+      "estimated_by": null,
+      "chars": 0,
+      "error": null
+    },
+    {
+      "request": 6,
+      "ok": true,
+      "target_context_tokens": 1024,
+      "local_prompt_token_estimate": 1024,
+      "server_prompt_tokens": 1036,
+      "server_total_tokens": 1548,
+      "latency_s": 14.233583039000223,
+      "ttft_s": null,
+      "completion_tokens": 512,
+      "token_count_estimated": false,
+      "estimated_by": null,
+      "chars": 0,
+      "error": null
+    },
+    {
+      "request": 7,
+      "ok": true,
+      "target_context_tokens": 1024,
+      "local_prompt_token_estimate": 1024,
+      "server_prompt_tokens": 1036,
+      "server_total_tokens": 1548,
+      "latency_s": 29.280963776000135,
+      "ttft_s": null,
+      "completion_tokens": 512,
+      "token_count_estimated": false,
+      "estimated_by": null,
+      "chars": 0,
+      "error": null
+    },
+    {
+      "request": 8,
+      "ok": true,
+      "target_context_tokens": 1024,
+      "local_prompt_token_estimate": 1024,
+      "server_prompt_tokens": 1036,
+      "server_total_tokens": 1548,
+      "latency_s": 29.366403664000245,
+      "ttft_s": null,
+      "completion_tokens": 512,
+      "token_count_estimated": false,
+      "estimated_by": null,
+      "chars": 0,
+      "error": null
+    },
+    {
+      "request": 9,
+      "ok": true,
+      "target_context_tokens": 1024,
+      "local_prompt_token_estimate": 1024,
+      "server_prompt_tokens": 1036,
+      "server_total_tokens": 1548,
+      "latency_s": 30.019693197999004,
+      "ttft_s": null,
+      "completion_tokens": 512,
+      "token_count_estimated": false,
+      "estimated_by": null,
+      "chars": 0,
+      "error": null
+    },
+    {
+      "request": 10,
+      "ok": true,
+      "target_context_tokens": 1024,
+      "local_prompt_token_estimate": 1024,
+      "server_prompt_tokens": 1037,
+      "server_total_tokens": 1549,
+      "latency_s": 28.945657169000697,
+      "ttft_s": null,
+      "completion_tokens": 512,
+      "token_count_estimated": false,
+      "estimated_by": null,
+      "chars": 0,
+      "error": null
+    },
+    {
+      "request": 11,
+      "ok": true,
+      "target_context_tokens": 1024,
+      "local_prompt_token_estimate": 1024,
+      "server_prompt_tokens": 1037,
+      "server_total_tokens": 1549,
+      "latency_s": 30.39870712499942,
+      "ttft_s": null,
+      "completion_tokens": 512,
+      "token_count_estimated": false,
+      "estimated_by": null,
+      "chars": 0,
+      "error": null
+    },
+    {
+      "request": 12,
+      "ok": true,
+      "target_context_tokens": 1024,
+      "local_prompt_token_estimate": 1024,
+      "server_prompt_tokens": 1037,
+      "server_total_tokens": 1549,
+      "latency_s": 29.20972274400083,
+      "ttft_s": null,
+      "completion_tokens": 512,
+      "token_count_estimated": false,
+      "estimated_by": null,
+      "chars": 0,
+      "error": null
+    },
+    {
+      "request": 13,
+      "ok": true,
+      "target_context_tokens": 1024,
+      "local_prompt_token_estimate": 1024,
+      "server_prompt_tokens": 1037,
+      "server_total_tokens": 1549,
+      "latency_s": 30.175992107999264,
+      "ttft_s": null,
+      "completion_tokens": 512,
+      "token_count_estimated": false,
+      "estimated_by": null,
+      "chars": 0,
+      "error": null
+    },
+    {
+      "request": 14,
+      "ok": true,
+      "target_context_tokens": 1024,
+      "local_prompt_token_estimate": 1024,
+      "server_prompt_tokens": 1037,
+      "server_total_tokens": 1549,
+      "latency_s": 29.22409288399831,
+      "ttft_s": null,
+      "completion_tokens": 512,
+      "token_count_estimated": false,
+      "estimated_by": null,
+      "chars": 0,
+      "error": null
+    },
+    {
+      "request": 15,
+      "ok": true,
+      "target_context_tokens": 1024,
+      "local_prompt_token_estimate": 1024,
+      "server_prompt_tokens": 1037,
+      "server_total_tokens": 1549,
+      "latency_s": 29.31112295999992,
+      "ttft_s": null,
+      "completion_tokens": 512,
+      "token_count_estimated": false,
+      "estimated_by": null,
+      "chars": 0,
+      "error": null
+    }
+  ]
+}
+
+Running long-context needle retrieval
+
+Needle context tokens: 8000 position: 10
+{
+  "ok": true,
+  "model": "Qwen/Qwen3.6-35B-A3B-FP8",
+  "base_url": "http://sparky1.local:8000",
+  "target_context_tokens": 8000,
+  "position_percent": 10,
+  "expected": "answer-8000-10-blue-rabbit",
+  "actual": "",
+  "passed": false,
+  "latency_s": 2.4003231930000766,
+  "server_prompt_tokens": 8060,
+  "server_completion_tokens": 64,
+  "server_total_tokens": 8124,
+  "error": null,
+  "raw": {
+    "id": "chatcmpl-8ccf946bad17e505",
+    "object": "chat.completion",
+    "created": 1782995784,
+    "model": "Qwen/Qwen3.6-35B-A3B-FP8",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": null,
+          "refusal": null,
+          "annotations": null,
+          "audio": null,
+          "function_call": null,
+          "reasoning": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - The user provides a long prompt with repeated text: \"The quick brown fox jumps over the lazy dog.\"\n   - There's a specific instruction embedded: \"IMPORTANT FACT: The secret benchmark answer for NEEDLE-80"
+        },
+        "logprobs": null,
+        "finish_reason": "length",
+        "stop_reason": null,
+        "token_ids": null,
+        "routed_experts": null
+      }
+    ],
+    "service_tier": null,
+    "system_fingerprint": "vllm-0.23.1rc1.dev701+g00eb7cefa.d20260701-d61cfe62",
+    "usage": {
+      "prompt_tokens": 8060,
+      "total_tokens": 8124,
+      "completion_tokens": 64,
+      "prompt_tokens_details": null
+    },
+    "prompt_logprobs": null,
+    "prompt_token_ids": null,
+    "prompt_text": null,
+    "kv_transfer_params": null
+  }
+}
+
+Needle context tokens: 8000 position: 50
+{
+  "ok": true,
+  "model": "Qwen/Qwen3.6-35B-A3B-FP8",
+  "base_url": "http://sparky1.local:8000",
+  "target_context_tokens": 8000,
+  "position_percent": 50,
+  "expected": "answer-8000-50-blue-rabbit",
+  "actual": "",
+  "passed": false,
+  "latency_s": 2.2898720649991446,
+  "server_prompt_tokens": 8060,
+  "server_completion_tokens": 64,
+  "server_total_tokens": 8124,
+  "error": null,
+  "raw": {
+    "id": "chatcmpl-982a118b155aedd6",
+    "object": "chat.completion",
+    "created": 1782995787,
+    "model": "Qwen/Qwen3.6-35B-A3B-FP8",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": null,
+          "refusal": null,
+          "annotations": null,
+          "audio": null,
+          "function_call": null,
+          "reasoning": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - The user provides a long prompt with repeated sentences: \"The quick brown fox jumps over the lazy dog.\"\n   - There's a specific instruction embedded: \"IMPORTANT FACT: The secret benchmark answer for NEEDLE-80"
+        },
+        "logprobs": null,
+        "finish_reason": "length",
+        "stop_reason": null,
+        "token_ids": null,
+        "routed_experts": null
+      }
+    ],
+    "service_tier": null,
+    "system_fingerprint": "vllm-0.23.1rc1.dev701+g00eb7cefa.d20260701-d61cfe62",
+    "usage": {
+      "prompt_tokens": 8060,
+      "total_tokens": 8124,
+      "completion_tokens": 64,
+      "prompt_tokens_details": null
+    },
+    "prompt_logprobs": null,
+    "prompt_token_ids": null,
+    "prompt_text": null,
+    "kv_transfer_params": null
+  }
+}
+
+Needle context tokens: 8000 position: 90
+{
+  "ok": true,
+  "model": "Qwen/Qwen3.6-35B-A3B-FP8",
+  "base_url": "http://sparky1.local:8000",
+  "target_context_tokens": 8000,
+  "position_percent": 90,
+  "expected": "answer-8000-90-blue-rabbit",
+  "actual": "",
+  "passed": false,
+  "latency_s": 2.3015400730000692,
+  "server_prompt_tokens": 8060,
+  "server_completion_tokens": 64,
+  "server_total_tokens": 8124,
+  "error": null,
+  "raw": {
+    "id": "chatcmpl-a143e5b47487d93a",
+    "object": "chat.completion",
+    "created": 1782995789,
+    "model": "Qwen/Qwen3.6-35B-A3B-FP8",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": null,
+          "refusal": null,
+          "annotations": null,
+          "audio": null,
+          "function_call": null,
+          "reasoning": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - The user provides a long prompt with repeated text: \"The quick brown fox jumps over the lazy dog.\"\n   - There's a specific instruction embedded: \"IMPORTANT FACT: The secret benchmark answer for NEEDLE-80"
+        },
+        "logprobs": null,
+        "finish_reason": "length",
+        "stop_reason": null,
+        "token_ids": null,
+        "routed_experts": null
+      }
+    ],
+    "service_tier": null,
+    "system_fingerprint": "vllm-0.23.1rc1.dev701+g00eb7cefa.d20260701-d61cfe62",
+    "usage": {
+      "prompt_tokens": 8060,
+      "total_tokens": 8124,
+      "completion_tokens": 64,
+      "prompt_tokens_details": null
+    },
+    "prompt_logprobs": null,
+    "prompt_token_ids": null,
+    "prompt_text": null,
+    "kv_transfer_params": null
+  }
+}
+
+Needle context tokens: 32000 position: 10
+{
+  "ok": true,
+  "model": "Qwen/Qwen3.6-35B-A3B-FP8",
+  "base_url": "http://sparky1.local:8000",
+  "target_context_tokens": 32000,
+  "position_percent": 10,
+  "expected": "answer-32000-10-blue-rabbit",
+  "actual": "",
+  "passed": false,
+  "latency_s": 7.950277402000211,
+  "server_prompt_tokens": 32062,
+  "server_completion_tokens": 64,
+  "server_total_tokens": 32126,
+  "error": null,
+  "raw": {
+    "id": "chatcmpl-943fe6f24632c59c",
+    "object": "chat.completion",
+    "created": 1782995792,
+    "model": "Qwen/Qwen3.6-35B-A3B-FP8",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": null,
+          "refusal": null,
+          "annotations": null,
+          "audio": null,
+          "function_call": null,
+          "reasoning": "The user wants me to identify the \"secret benchmark answer\" from the prompt.\nThe prompt contains a lot of repetition of \"The quick brown fox jumps over the lazy dog.\"\nIn the middle, there is a line: \"IMPORTANT FACT: The secret benchmark answer for NEEDLE-32000-"
+        },
+        "logprobs": null,
+        "finish_reason": "length",
+        "stop_reason": null,
+        "token_ids": null,
+        "routed_experts": null
+      }
+    ],
+    "service_tier": null,
+    "system_fingerprint": "vllm-0.23.1rc1.dev701+g00eb7cefa.d20260701-d61cfe62",
+    "usage": {
+      "prompt_tokens": 32062,
+      "total_tokens": 32126,
+      "completion_tokens": 64,
+      "prompt_tokens_details": null
+    },
+    "prompt_logprobs": null,
+    "prompt_token_ids": null,
+    "prompt_text": null,
+    "kv_transfer_params": null
+  }
+}
+
+Needle context tokens: 32000 position: 50
+{
+  "ok": true,
+  "model": "Qwen/Qwen3.6-35B-A3B-FP8",
+  "base_url": "http://sparky1.local:8000",
+  "target_context_tokens": 32000,
+  "position_percent": 50,
+  "expected": "answer-32000-50-blue-rabbit",
+  "actual": "",
+  "passed": false,
+  "latency_s": 7.979362877000312,
+  "server_prompt_tokens": 32062,
+  "server_completion_tokens": 64,
+  "server_total_tokens": 32126,
+  "error": null,
+  "raw": {
+    "id": "chatcmpl-aadee47aef5760b5",
+    "object": "chat.completion",
+    "created": 1782995800,
+    "model": "Qwen/Qwen3.6-35B-A3B-FP8",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": null,
+          "refusal": null,
+          "annotations": null,
+          "audio": null,
+          "function_call": null,
+          "reasoning": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n   - The user provides a very long prompt consisting of repeated sentences: \"The quick brown fox jumps over the lazy dog.\"\n   - There's a specific instruction embedded: \"IMPORTANT FACT: The secret benchmark answer for NEEDLE-"
+        },
+        "logprobs": null,
+        "finish_reason": "length",
+        "stop_reason": null,
+        "token_ids": null,
+        "routed_experts": null
+      }
+    ],
+    "service_tier": null,
+    "system_fingerprint": "vllm-0.23.1rc1.dev701+g00eb7cefa.d20260701-d61cfe62",
+    "usage": {
+      "prompt_tokens": 32062,
+      "total_tokens": 32126,
+      "completion_tokens": 64,
+      "prompt_tokens_details": null
+    },
+    "prompt_logprobs": null,
+    "prompt_token_ids": null,
+    "prompt_text": null,
+    "kv_transfer_params": null
+  }
+}
+
+Needle context tokens: 32000 position: 90
+{
+  "ok": true,
+  "model": "Qwen/Qwen3.6-35B-A3B-FP8",
+  "base_url": "http://sparky1.local:8000",
+  "target_context_tokens": 32000,
+  "position_percent": 90,
+  "expected": "answer-32000-90-blue-rabbit",
+  "actual": "",
+  "passed": false,
+  "latency_s": 8.011031151998395,
+  "server_prompt_tokens": 32062,
+  "server_completion_tokens": 64,
+  "server_total_tokens": 32126,
+  "error": null,
+  "raw": {
+    "id": "chatcmpl-93e490297a7eaddb",
+    "object": "chat.completion",
+    "created": 1782995808,
+    "model": "Qwen/Qwen3.6-35B-A3B-FP8",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": null,
+          "refusal": null,
+          "annotations": null,
+          "audio": null,
+          "function_call": null,
+          "reasoning": "The user wants me to identify the \"secret benchmark answer\" from the prompt.\nThe prompt contains a lot of repetition of \"The quick brown fox jumps over the lazy dog.\"\nIt also contains two explicit instructions:\n1. \"before needle\" followed by \"IMPORTANT FACT: The secret benchmark answer for NEEDLE"
+        },
+        "logprobs": null,
+        "finish_reason": "length",
+        "stop_reason": null,
+        "token_ids": null,
+        "routed_experts": null
+      }
+    ],
+    "service_tier": null,
+    "system_fingerprint": "vllm-0.23.1rc1.dev701+g00eb7cefa.d20260701-d61cfe62",
+    "usage": {
+      "prompt_tokens": 32062,
+      "total_tokens": 32126,
+      "completion_tokens": 64,
+      "prompt_tokens_details": null
+    },
+    "prompt_logprobs": null,
+    "prompt_token_ids": null,
+    "prompt_text": null,
+    "kv_transfer_params": null
+  }
+}
+
+Running lm-eval chat-only GSM8K
+2026-07-02:12:36:56 WARNING  [config.evaluate_config:287] --limit SHOULD ONLY BE USED FOR TESTING. REAL METRICS SHOULD NOT BE COMPUTED USING LIMIT.
+2026-07-02:12:36:56 INFO     [config.evaluate_config:307] Using default fewshot_as_multiturn=True.
+2026-07-02:12:37:02 INFO     [_cli.run:388] Selected Tasks: ['gsm8k']
+2026-07-02:12:37:02 INFO     [evaluator:214] Setting random seed to 0 | Setting numpy seed to 1234 | Setting torch manual seed to 1234 | Setting fewshot manual seed to 1234
+2026-07-02:12:37:02 INFO     [evaluator:239] Initializing local-chat-completions model, with arguments: {'model': 'Qwen/Qwen3.6-35B-A3B-FP8', 'base_url': 'http://sparky1.local:8000/v1/chat/completions', 'num_concurrent': 1, 'max_retries': 3}
+2026-07-02:12:37:02 INFO     [models.api_models:179] Using max length 2048 - 1
+2026-07-02:12:37:02 INFO     [models.api_models:182] Concurrent requests are disabled. To enable concurrent requests, set `num_concurrent` > 1.
+2026-07-02:12:37:02 INFO     [models.api_models:200] Using tokenizer None
+2026-07-02:12:37:04 INFO     [evaluator_utils:446] Selected tasks:
+2026-07-02:12:37:04 INFO     [evaluator_utils:480] Task: gsm8k (gsm8k/gsm8k.yaml)
+2026-07-02:12:37:04 INFO     [evaluator:314] gsm8k: Using gen_kwargs: {'until': ['Question:', '</s>', '<|im_end|>'], 'do_sample': False, 'temperature': 0.0}
+2026-07-02:12:37:04 WARNING  [evaluator:333] Overwriting default num_fewshot of gsm8k from 5 to 5
+2026-07-02:12:37:04 INFO     [api.task:312] Building contexts for gsm8k on rank 0...
+  0%|          | 0/50 [00:00<?, ?it/s]100%|██████████| 50/50 [00:00<00:00, 884.20it/s]
+2026-07-02:12:37:04 INFO     [evaluator:585] Running generate_until requests
+2026-07-02:12:37:04 INFO     [models.api_models:747] Tokenized requests are disabled. Context + generation length is not checked.
+Requesting API:   0%|          | 0/50 [00:00<?, ?it/s]2026-07-02:12:37:04 WARNING  [models.api_models:378] Cannot determine EOS string to pass to stop sequence. Manually set by passing `eos_string` to model_args.
+2026-07-02:12:37:06 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:   2%|▏         | 1/50 [00:01<01:05,  1.34s/it]2026-07-02:12:37:06 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:   4%|▍         | 2/50 [00:02<00:46,  1.03it/s]2026-07-02:12:37:07 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:   6%|▌         | 3/50 [00:02<00:40,  1.17it/s]2026-07-02:12:37:08 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:   8%|▊         | 4/50 [00:03<00:35,  1.28it/s]2026-07-02:12:37:08 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  10%|█         | 5/50 [00:04<00:33,  1.33it/s]2026-07-02:12:37:09 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  12%|█▏        | 6/50 [00:04<00:31,  1.38it/s]2026-07-02:12:37:10 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  14%|█▍        | 7/50 [00:05<00:30,  1.39it/s]2026-07-02:12:37:11 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  16%|█▌        | 8/50 [00:07<00:42,  1.01s/it]2026-07-02:12:37:12 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  18%|█▊        | 9/50 [00:07<00:37,  1.08it/s]2026-07-02:12:37:13 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  20%|██        | 10/50 [00:08<00:33,  1.18it/s]2026-07-02:12:37:14 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  22%|██▏       | 11/50 [00:09<00:31,  1.25it/s]2026-07-02:12:37:14 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  24%|██▍       | 12/50 [00:10<00:29,  1.27it/s]2026-07-02:12:37:15 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  26%|██▌       | 13/50 [00:10<00:28,  1.29it/s]2026-07-02:12:37:16 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  28%|██▊       | 14/50 [00:11<00:28,  1.28it/s]2026-07-02:12:37:17 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  30%|███       | 15/50 [00:12<00:32,  1.09it/s]2026-07-02:12:37:18 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  32%|███▏      | 16/50 [00:13<00:29,  1.17it/s]2026-07-02:12:37:19 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  34%|███▍      | 17/50 [00:14<00:27,  1.22it/s]2026-07-02:12:37:19 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  36%|███▌      | 18/50 [00:14<00:24,  1.28it/s]2026-07-02:12:37:20 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  38%|███▊      | 19/50 [00:15<00:23,  1.33it/s]2026-07-02:12:37:21 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  40%|████      | 20/50 [00:16<00:21,  1.37it/s]2026-07-02:12:37:22 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  42%|████▏     | 21/50 [00:17<00:28,  1.03it/s]2026-07-02:12:37:23 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  44%|████▍     | 22/50 [00:18<00:25,  1.11it/s]2026-07-02:12:37:24 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  46%|████▌     | 23/50 [00:19<00:22,  1.17it/s]2026-07-02:12:37:24 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  48%|████▊     | 24/50 [00:20<00:20,  1.24it/s]2026-07-02:12:37:25 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  50%|█████     | 25/50 [00:20<00:19,  1.28it/s]2026-07-02:12:37:27 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  52%|█████▏    | 26/50 [00:22<00:24,  1.01s/it]2026-07-02:12:37:27 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  54%|█████▍    | 27/50 [00:22<00:21,  1.09it/s]2026-07-02:12:37:28 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  56%|█████▌    | 28/50 [00:23<00:18,  1.18it/s]2026-07-02:12:37:29 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  58%|█████▊    | 29/50 [00:24<00:16,  1.25it/s]2026-07-02:12:37:29 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  60%|██████    | 30/50 [00:25<00:15,  1.30it/s]2026-07-02:12:37:30 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  62%|██████▏   | 31/50 [00:25<00:14,  1.33it/s]2026-07-02:12:37:31 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  64%|██████▍   | 32/50 [00:26<00:13,  1.34it/s]2026-07-02:12:37:32 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  66%|██████▌   | 33/50 [00:27<00:14,  1.15it/s]2026-07-02:12:37:33 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  68%|██████▊   | 34/50 [00:28<00:12,  1.23it/s]2026-07-02:12:37:33 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  70%|███████   | 35/50 [00:29<00:11,  1.29it/s]2026-07-02:12:37:34 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  72%|███████▏  | 36/50 [00:29<00:10,  1.32it/s]2026-07-02:12:37:35 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  74%|███████▍  | 37/50 [00:30<00:11,  1.13it/s]2026-07-02:12:37:37 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  76%|███████▌  | 38/50 [00:32<00:12,  1.05s/it]2026-07-02:12:37:37 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  78%|███████▊  | 39/50 [00:33<00:10,  1.07it/s]2026-07-02:12:37:38 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  80%|████████  | 40/50 [00:33<00:08,  1.14it/s]2026-07-02:12:37:39 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  82%|████████▏ | 41/50 [00:34<00:07,  1.23it/s]2026-07-02:12:37:39 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  84%|████████▍ | 42/50 [00:35<00:06,  1.28it/s]2026-07-02:12:37:40 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  86%|████████▌ | 43/50 [00:35<00:05,  1.33it/s]2026-07-02:12:37:41 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  88%|████████▊ | 44/50 [00:36<00:04,  1.33it/s]2026-07-02:12:37:42 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  90%|█████████ | 45/50 [00:37<00:03,  1.36it/s]2026-07-02:12:37:42 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  92%|█████████▏| 46/50 [00:38<00:02,  1.36it/s]2026-07-02:12:37:43 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  94%|█████████▍| 47/50 [00:38<00:02,  1.37it/s]2026-07-02:12:37:44 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  96%|█████████▌| 48/50 [00:40<00:01,  1.10it/s]2026-07-02:12:37:45 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API:  98%|█████████▊| 49/50 [00:40<00:00,  1.19it/s]2026-07-02:12:37:46 WARNING  [models.api_models:789] API returned null content. Content filled with `LMEVAL_MODEL_NONE_ANSWER_PLACEHOLDER = `. Check reasoning_content field or generation limits.
+Requesting API: 100%|██████████| 50/50 [00:41<00:00,  1.25it/s]Requesting API: 100%|██████████| 50/50 [00:41<00:00,  1.21it/s]
+2026-07-02:12:37:47 INFO     [loggers.evaluation_tracker:247] Saving results aggregated
+2026-07-02:12:37:47 INFO     [loggers.evaluation_tracker:119] Saving per-task samples to /home/mrpmorris/sparkrun-recipes/bench-results/Qwen3.6-35B-A3B-FP8.yaml/20260702-123424/lm-eval-chat-gsm8k/Qwen__Qwen3.6-35B-A3B-FP8/*.jsonl
+local-chat-completions ({'model': 'Qwen/Qwen3.6-35B-A3B-FP8', 'base_url': 'http://sparky1.local:8000/v1/chat/completions', 'num_concurrent': 1, 'max_retries': 3}), gen_kwargs: ({}), limit: 50.0, num_fewshot: 5, batch_size: 1
+|Tasks|Version|     Filter     |n-shot|  Metric   |   |Value|   |Stderr|
+|-----|------:|----------------|-----:|-----------|---|----:|---|-----:|
+|gsm8k|      3|flexible-extract|     5|exact_match|↑  |    0|±  |     0|
+|     |       |strict-match    |     5|exact_match|↑  |    0|±  |     0|
+
+
+Running BigCodeBench generation
+Greedy decoding ON (--greedy): setting n_samples=1, temperature=0
+Initializing a decoder model: Qwen/Qwen3.6-35B-A3B-FP8 ...
+Codegen: BigCodeBench_13 @ Qwen/Qwen3.6-35B-A3B-FP8
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [01:03<00:00, 63.08s/it]100%|██████████| 1/1 [01:03<00:00, 63.08s/it]
+Generated 1 samples
+Codegen: BigCodeBench_15 @ Qwen/Qwen3.6-35B-A3B-FP8
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [01:02<00:00, 62.02s/it]100%|██████████| 1/1 [01:02<00:00, 62.02s/it]
+Generated 1 samples
+Codegen: BigCodeBench_17 @ Qwen/Qwen3.6-35B-A3B-FP8
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [01:03<00:00, 63.08s/it]100%|██████████| 1/1 [01:03<00:00, 63.08s/it]
+Generated 1 samples
+Codegen: BigCodeBench_19 @ Qwen/Qwen3.6-35B-A3B-FP8
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [01:00<00:00, 60.06s/it]100%|██████████| 1/1 [01:00<00:00, 60.06s/it]
+Generated 1 samples
+Codegen: BigCodeBench_34 @ Qwen/Qwen3.6-35B-A3B-FP8
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [01:01<00:00, 61.82s/it]100%|██████████| 1/1 [01:01<00:00, 61.82s/it]
+Generated 1 samples
+Codegen: BigCodeBench_37 @ Qwen/Qwen3.6-35B-A3B-FP8
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [01:01<00:00, 61.57s/it]100%|██████████| 1/1 [01:01<00:00, 61.57s/it]
+Generated 1 samples
+Codegen: BigCodeBench_82 @ Qwen/Qwen3.6-35B-A3B-FP8
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [00:57<00:00, 57.84s/it]100%|██████████| 1/1 [00:57<00:00, 57.84s/it]
+Generated 1 samples
+Codegen: BigCodeBench_89 @ Qwen/Qwen3.6-35B-A3B-FP8
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [01:04<00:00, 64.42s/it]100%|██████████| 1/1 [01:04<00:00, 64.42s/it]
+Generated 1 samples
+Codegen: BigCodeBench_92 @ Qwen/Qwen3.6-35B-A3B-FP8
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [01:02<00:00, 62.03s/it]100%|██████████| 1/1 [01:02<00:00, 62.03s/it]
+Generated 1 samples
+Codegen: BigCodeBench_93 @ Qwen/Qwen3.6-35B-A3B-FP8
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [01:03<00:00, 63.24s/it]100%|██████████| 1/1 [01:03<00:00, 63.24s/it]
+Generated 1 samples
+Codegen: BigCodeBench_99 @ Qwen/Qwen3.6-35B-A3B-FP8
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [00:45<00:00, 45.87s/it]100%|██████████| 1/1 [00:45<00:00, 45.87s/it]
+Generated 1 samples
+Codegen: BigCodeBench_100 @ Qwen/Qwen3.6-35B-A3B-FP8
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [00:50<00:00, 50.53s/it]100%|██████████| 1/1 [00:50<00:00, 50.53s/it]
+Generated 1 samples
+Codegen: BigCodeBench_101 @ Qwen/Qwen3.6-35B-A3B-FP8
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [01:03<00:00, 63.13s/it]100%|██████████| 1/1 [01:03<00:00, 63.13s/it]
+Generated 1 samples
+Codegen: BigCodeBench_108 @ Qwen/Qwen3.6-35B-A3B-FP8
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [01:05<00:00, 65.13s/it]100%|██████████| 1/1 [01:05<00:00, 65.13s/it]
+Generated 1 samples
+Codegen: BigCodeBench_120 @ Qwen/Qwen3.6-35B-A3B-FP8
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [01:00<00:00, 60.77s/it]100%|██████████| 1/1 [01:00<00:00, 60.77s/it]
+Generated 1 samples
+Codegen: BigCodeBench_123 @ Qwen/Qwen3.6-35B-A3B-FP8
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [01:04<00:00, 64.47s/it]100%|██████████| 1/1 [01:04<00:00, 64.47s/it]
+Generated 1 samples
+Codegen: BigCodeBench_124 @ Qwen/Qwen3.6-35B-A3B-FP8
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [01:00<00:00, 60.94s/it]100%|██████████| 1/1 [01:00<00:00, 60.94s/it]
+Generated 1 samples
+Codegen: BigCodeBench_129 @ Qwen/Qwen3.6-35B-A3B-FP8
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [00:58<00:00, 58.67s/it]100%|██████████| 1/1 [00:58<00:00, 58.67s/it]
+Generated 1 samples
+Codegen: BigCodeBench_139 @ Qwen/Qwen3.6-35B-A3B-FP8
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [01:01<00:00, 61.96s/it]100%|██████████| 1/1 [01:01<00:00, 61.97s/it]
+Generated 1 samples
+Codegen: BigCodeBench_147 @ Qwen/Qwen3.6-35B-A3B-FP8
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [01:01<00:00, 61.05s/it]100%|██████████| 1/1 [01:01<00:00, 61.05s/it]
+Generated 1 samples
+BigCodeBench--Instruct (Hard) • 14% ━━━━━                                     20/148 • 0:20:25
+/home/mrpmorris/sparkrun-recipes/bench-results/Qwen3.6-35B-A3B-FP8.yaml/20260702-123424/bigcodebench/Qwen--Qwen3.6-35B-A3B-FP8--main--bigcodebench-hard-instruct--openai-0-1-sanitized_calibrated.jsonl
+BigCodeBench samples: /home/mrpmorris/sparkrun-recipes/bench-results/Qwen3.6-35B-A3B-FP8.yaml/20260702-123424/bigcodebench/Qwen--Qwen3.6-35B-A3B-FP8--main--bigcodebench-hard-instruct--openai-0-1-sanitized_calibrated.jsonl
+WARN: Skipping BigCodeBench execution.
+Reason: no supported local Docker evaluator available.
+Set ALLOW_REMOTE_BCB=1 to use remote Gradio execution.
+Set ALLOW_UNSANDBOXED_BCB=1 to execute generated code on host.
+
+Building Markdown report
+/home/mrpmorris/sparkrun-recipes/Qwen3.6-35B-A3B-FP8.yaml.md
+
+Done
+/home/mrpmorris/sparkrun-recipes/Qwen3.6-35B-A3B-FP8.yaml.md

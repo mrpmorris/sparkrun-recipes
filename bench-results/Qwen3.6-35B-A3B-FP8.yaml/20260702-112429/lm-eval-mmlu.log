@@ -1,0 +1,27 @@
+/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.7.0) or chardet (6.0.0.post1)/charset_normalizer (3.4.7) doesn't match a supported version!
+  warnings.warn(
+2026-07-02:11:31:02 WARNING  [config.evaluate_config:287] --limit SHOULD ONLY BE USED FOR TESTING. REAL METRICS SHOULD NOT BE COMPUTED USING LIMIT.
+2026-07-02:11:31:05 INFO     [_cli.run:388] Selected Tasks: ['mmlu']
+2026-07-02:11:31:06 INFO     [evaluator:214] Setting random seed to 0 | Setting numpy seed to 1234 | Setting torch manual seed to 1234 | Setting fewshot manual seed to 1234
+2026-07-02:11:31:07 INFO     [evaluator:239] Initializing local-completions model, with arguments: {'model': 'Qwen/Qwen3.6-35B-A3B-FP8', 'base_url': 'http://sparky1.local:8000/v1/completions', 'num_concurrent': 1, 'max_retries': 3, 'tokenized_requests': False, 'batch_size': 1}
+Traceback (most recent call last):
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/bin/lm_eval", line 6, in <module>
+    sys.exit(cli_evaluate())
+             ^^^^^^^^^^^^^^
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/lm_eval/__main__.py", line 10, in cli_evaluate
+    parser.execute(args)
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/lm_eval/_cli/harness.py", line 60, in execute
+    args.func(args)
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/lm_eval/_cli/run.py", line 391, in _execute
+    results = simple_evaluate(
+              ^^^^^^^^^^^^^^^^
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/lm_eval/utils.py", line 575, in _wrapper
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/lm_eval/evaluator.py", line 242, in simple_evaluate
+    lm = lm_eval.api.registry.get_model(model).create_from_arg_obj(
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/lm_eval/api/model.py", line 169, in create_from_arg_obj
+    return cls(**arg_dict, **additional_config)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: lm_eval.models.openai_completions.LocalCompletionsAPI() got multiple values for keyword argument 'batch_size'

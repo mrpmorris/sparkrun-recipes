@@ -1,0 +1,140 @@
+2026-07-02:12:10:40 WARNING  [config.evaluate_config:287] --limit SHOULD ONLY BE USED FOR TESTING. REAL METRICS SHOULD NOT BE COMPUTED USING LIMIT.
+2026-07-02:12:10:51 INFO     [_cli.run:388] Selected Tasks: ['hellaswag']
+2026-07-02:12:10:52 INFO     [evaluator:214] Setting random seed to 0 | Setting numpy seed to 1234 | Setting torch manual seed to 1234 | Setting fewshot manual seed to 1234
+2026-07-02:12:10:52 INFO     [evaluator:239] Initializing local-completions model, with arguments: {'model': 'Qwen/Qwen3.6-35B-A3B-FP8', 'base_url': 'http://sparky1.local:8000/v1/completions', 'num_concurrent': 1, 'max_retries': 3, 'tokenized_requests': False}
+2026-07-02:12:10:52 INFO     [models.openai_completions:42] Remote tokenizer not supported. Using huggingface tokenizer backend.
+2026-07-02:12:10:52 INFO     [models.api_models:179] Using max length 2048 - 1
+2026-07-02:12:10:52 INFO     [models.api_models:182] Concurrent requests are disabled. To enable concurrent requests, set `num_concurrent` > 1.
+2026-07-02:12:10:52 INFO     [models.api_models:200] Using tokenizer huggingface
+Generating train split:   0%|          | 0/39905 [00:00<?, ? examples/s]Generating train split: 100%|██████████| 39905/39905 [00:00<00:00, 583210.04 examples/s]
+Generating test split:   0%|          | 0/10003 [00:00<?, ? examples/s]Generating test split: 100%|██████████| 10003/10003 [00:00<00:00, 561354.33 examples/s]
+Generating validation split:   0%|          | 0/10042 [00:00<?, ? examples/s]Generating validation split: 100%|██████████| 10042/10042 [00:00<00:00, 648087.41 examples/s]
+Map:   0%|          | 0/39905 [00:00<?, ? examples/s]Map:   7%|▋         | 2668/39905 [00:00<00:01, 26565.13 examples/s]Map:  14%|█▎        | 5427/39905 [00:00<00:01, 26526.20 examples/s]Map:  24%|██▍       | 9495/39905 [00:00<00:01, 26849.61 examples/s]Map:  34%|███▍      | 13531/39905 [00:00<00:00, 26873.35 examples/s]Map:  41%|████      | 16311/39905 [00:00<00:01, 19435.58 examples/s]Map:  47%|████▋     | 18930/39905 [00:00<00:00, 21001.67 examples/s]Map:  53%|█████▎    | 21271/39905 [00:00<00:00, 21600.07 examples/s]Map:  60%|█████▉    | 23869/39905 [00:01<00:00, 22746.66 examples/s]Map:  66%|██████▌   | 26296/39905 [00:01<00:00, 23015.21 examples/s]Map:  72%|███████▏  | 28909/39905 [00:01<00:00, 23881.73 examples/s]Map:  82%|████████▏ | 32626/39905 [00:01<00:00, 24207.07 examples/s]Map:  88%|████████▊ | 35291/39905 [00:01<00:00, 18366.01 examples/s]Map:  95%|█████████▌| 37910/39905 [00:01<00:00, 20063.07 examples/s]Map: 100%|██████████| 39905/39905 [00:01<00:00, 21784.14 examples/s]
+Map:   0%|          | 0/10042 [00:00<?, ? examples/s]Map:  28%|██▊       | 2803/10042 [00:00<00:00, 27909.59 examples/s]Map:  66%|██████▌   | 6648/10042 [00:00<00:00, 26087.24 examples/s]Map: 100%|██████████| 10042/10042 [00:00<00:00, 24144.75 examples/s]Map: 100%|██████████| 10042/10042 [00:00<00:00, 24657.79 examples/s]
+2026-07-02:12:11:06 INFO     [evaluator_utils:446] Selected tasks:
+2026-07-02:12:11:06 INFO     [evaluator_utils:480] Task: hellaswag (hellaswag/hellaswag.yaml)
+2026-07-02:12:11:06 WARNING  [evaluator:333] Overwriting default num_fewshot of hellaswag from None to 10
+2026-07-02:12:11:06 INFO     [api.task:312] Building contexts for hellaswag on rank 0...
+  0%|          | 0/50 [00:00<?, ?it/s]100%|██████████| 50/50 [00:00<00:00, 532.41it/s]
+2026-07-02:12:11:06 INFO     [evaluator:585] Running loglikelihood requests
+Tokenizing inputs:   0%|          | 0/200 [00:00<?, ?it/s]Tokenizing inputs:  35%|███▌      | 70/200 [00:00<00:00, 692.97it/s]Tokenizing inputs:  70%|███████   | 140/200 [00:00<00:00, 661.34it/s]Tokenizing inputs: 100%|██████████| 200/200 [00:00<00:00, 660.50it/s]
+Requesting API:   0%|          | 0/200 [00:00<?, ?it/s]Traceback (most recent call last):
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/urllib3/connection.py", line 204, in _new_conn
+    sock = connection.create_connection(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/urllib3/util/connection.py", line 85, in create_connection
+    raise err
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/urllib3/util/connection.py", line 73, in create_connection
+    sock.connect(sa)
+ConnectionRefusedError: [Errno 111] Connection refused
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/urllib3/connectionpool.py", line 788, in urlopen
+    response = self._make_request(
+               ^^^^^^^^^^^^^^^^^^^
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/urllib3/connectionpool.py", line 493, in _make_request
+    conn.request(
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/urllib3/connection.py", line 500, in request
+    self.endheaders()
+  File "/usr/lib/python3.12/http/client.py", line 1351, in endheaders
+    self._send_output(message_body, encode_chunked=encode_chunked)
+  File "/usr/lib/python3.12/http/client.py", line 1111, in _send_output
+    self.send(msg)
+  File "/usr/lib/python3.12/http/client.py", line 1055, in send
+    self.connect()
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/urllib3/connection.py", line 331, in connect
+    self.sock = self._new_conn()
+                ^^^^^^^^^^^^^^^^
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/urllib3/connection.py", line 219, in _new_conn
+    raise NewConnectionError(
+urllib3.exceptions.NewConnectionError: HTTPConnection(host='sparky1.local', port=8000): Failed to establish a new connection: [Errno 111] Connection refused
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/requests/adapters.py", line 644, in send
+    resp = conn.urlopen(
+           ^^^^^^^^^^^^^
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/urllib3/connectionpool.py", line 842, in urlopen
+    retries = retries.increment(
+              ^^^^^^^^^^^^^^^^^^
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/urllib3/util/retry.py", line 543, in increment
+    raise MaxRetryError(_pool, url, reason) from reason  # type: ignore[arg-type]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+urllib3.exceptions.MaxRetryError: HTTPConnectionPool(host='sparky1.local', port=8000): Max retries exceeded with url: /v1/completions (Caused by NewConnectionError("HTTPConnection(host='sparky1.local', port=8000): Failed to establish a new connection: [Errno 111] Connection refused"))
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/bin/lm_eval", line 6, in <module>
+    sys.exit(cli_evaluate())
+             ^^^^^^^^^^^^^^
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/lm_eval/__main__.py", line 10, in cli_evaluate
+    parser.execute(args)
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/lm_eval/_cli/harness.py", line 60, in execute
+    args.func(args)
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/lm_eval/_cli/run.py", line 391, in _execute
+    results = simple_evaluate(
+              ^^^^^^^^^^^^^^^^
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/lm_eval/utils.py", line 575, in _wrapper
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/lm_eval/evaluator.py", line 358, in simple_evaluate
+    results = evaluate(
+              ^^^^^^^^^
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/lm_eval/utils.py", line 575, in _wrapper
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/lm_eval/evaluator.py", line 596, in evaluate
+    resps = getattr(lm, reqtype)(cloned_reqs)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/lm_eval/api/model.py", line 446, in loglikelihood
+    return self._loglikelihood_tokens(new_reqs, disable_tqdm=disable_tqdm)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/lm_eval/models/api_models.py", line 663, in _loglikelihood_tokens
+    outputs = retry(
+              ^^^^^^
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/tenacity/__init__.py", line 331, in wrapped_f
+    return copy(f, *args, **kw)
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/tenacity/__init__.py", line 470, in __call__
+    do = self.iter(retry_state=retry_state)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/tenacity/__init__.py", line 371, in iter
+    result = action(retry_state)
+             ^^^^^^^^^^^^^^^^^^^
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/tenacity/__init__.py", line 413, in exc_check
+    raise retry_exc.reraise()
+          ^^^^^^^^^^^^^^^^^^^
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/tenacity/__init__.py", line 184, in reraise
+    raise self.last_attempt.result()
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/concurrent/futures/_base.py", line 449, in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/concurrent/futures/_base.py", line 401, in __get_result
+    raise self._exception
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/tenacity/__init__.py", line 473, in __call__
+    result = fn(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/lm_eval/models/api_models.py", line 467, in model_call
+    response = requests.post(
+               ^^^^^^^^^^^^^^
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/requests/api.py", line 115, in post
+    return request("post", url, data=data, json=json, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/requests/api.py", line 59, in request
+    return session.request(method=method, url=url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/requests/sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/requests/sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/requests/adapters.py", line 677, in send
+    raise ConnectionError(e, request=request)
+requests.exceptions.ConnectionError: HTTPConnectionPool(host='sparky1.local', port=8000): Max retries exceeded with url: /v1/completions (Caused by NewConnectionError("HTTPConnection(host='sparky1.local', port=8000): Failed to establish a new connection: [Errno 111] Connection refused"))
+Requesting API:   0%|          | 0/200 [00:02<?, ?it/s]
