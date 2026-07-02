@@ -6,9 +6,10 @@ Run via ./benchllm.sh, which provisions the virtualenv and dependencies, e.g.:
   ./benchllm.sh --recipe MiaAI-Lab-Qwen3.6-27B-NVFP4.yaml
 
 The script launches the recipe with `sparkrun run`, waits for the OpenAI-compatible
-endpoint to come up, measures speed across prompt sizes and concurrency levels,
-runs lm-eval intelligence benchmarks, writes `<recipe stem>.md` next to the recipe,
-and stops the workload again (guaranteed via atexit/signal traps).
+endpoint to come up, measures single-request speed (TTFT, prefill/generation tok/s)
+across a ladder of prompt sizes up to the model max, runs lm-eval intelligence and
+coding benchmarks, writes `<recipe stem>.md` next to the recipe, and stops the
+workload again (guaranteed via atexit/signal traps).
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ import concurrent.futures
 import datetime as dt
 import json
 import math
+import os
 import random
 import shutil
 import signal
@@ -62,10 +64,10 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Benchmark a sparkrun recipe (speed + intelligence).")
     p.add_argument("--recipe", required=True, help="Recipe filename or path (resolved relative to this script)")
     p.add_argument("--max-prompt", type=int, default=260_000, help="Ceiling for the prompt-size ladder (default 260000)")
-    p.add_argument("--concurrency", default="1,4,8,16", help="Comma list of concurrency levels for the sweep (default 1,4,8,16)")
-    p.add_argument("--sweep-sizes", default="1024,32768", help="Prompt sizes used for the concurrency sweep (default 1024,32768)")
+    p.add_argument("--steps", type=int, default=8, help="Number of prompt-size steps up to the ceiling (default 8, i.e. max/8 increments)")
     p.add_argument("--output-tokens", type=int, default=256, help="Generation length for speed tests (default 256)")
-    p.add_argument("--eval-tasks", default="mmlu,gsm8k,arc_challenge,hellaswag", help="lm-eval tasks (default mmlu,gsm8k,arc_challenge,hellaswag)")
+    p.add_argument("--eval-tasks", default="mmlu,gsm8k,arc_challenge,hellaswag,humaneval,mbpp",
+                   help="lm-eval tasks (default mmlu,gsm8k,arc_challenge,hellaswag,humaneval,mbpp)")
     p.add_argument("--eval-limit", type=int, default=100, help="Samples per lm-eval task, 0 = full run (default 100)")
     p.add_argument("--eval-concurrency", type=int, default=4, help="Concurrent lm-eval requests (default 4)")
     p.add_argument("--ready-timeout", type=int, default=3600, help="Seconds to wait for the model endpoint (default 3600)")
@@ -291,7 +293,8 @@ def run_speed_point(base_url: str, model: str, size: int, concurrency: int,
     return point
 
 
-def prompt_ladder(max_prompt: int, max_model_len, output_tokens: int) -> tuple[list[int], list[str]]:
+def prompt_ladder(max_prompt: int, max_model_len, output_tokens: int, steps: int) -> tuple[list[int], list[str]]:
+    """Linear ladder: steps points at limit/steps increments, ending at the limit."""
     warnings = []
     limit = max_prompt
     if max_model_len:
@@ -300,19 +303,33 @@ def prompt_ladder(max_prompt: int, max_model_len, output_tokens: int) -> tuple[l
             warnings.append(
                 f"Prompt ladder truncated to {model_cap} tokens by recipe max_model_len={max_model_len}.")
             limit = model_cap
-    sizes = []
-    s = 1024
-    while s < limit:
-        sizes.append(s)
-        s *= 2
-    if limit >= 1024 and (not sizes or sizes[-1] != limit):
-        sizes.append(limit)
+    sizes = sorted({max(256, round(limit * i / steps)) for i in range(1, steps + 1)})
     return sizes, warnings
 
 
 # ---------------------------------------------------------------------------
 # Intelligence benchmark (lm-eval)
 # ---------------------------------------------------------------------------
+
+# Tasks whose evaluation executes model-generated code on this machine.
+# lm-eval refuses to run them without an explicit opt-in flag.
+CODE_TASKS = {"humaneval", "humaneval_plus", "humaneval_64", "mbpp", "mbpp_plus"}
+
+TASK_DESCRIPTIONS = {
+    "mmlu": "General knowledge across 57 academic subjects",
+    "gsm8k": "Grade-school math word problems (multi-step reasoning)",
+    "arc_challenge": "Hard science exam questions (reasoning)",
+    "arc_easy": "Easy science exam questions",
+    "hellaswag": "Commonsense sentence completion",
+    "humaneval": "Coding: write Python functions that pass unit tests",
+    "humaneval_plus": "Coding: HumanEval with extended unit tests",
+    "mbpp": "Coding: basic Python programming problems, graded by unit tests",
+    "mbpp_plus": "Coding: MBPP with extended unit tests",
+    "winogrande": "Commonsense pronoun resolution",
+    "ifeval": "Instruction following",
+    "truthfulqa_mc2": "Resistance to common falsehoods",
+}
+
 
 def run_lm_eval_task(task: str, base_url: str, model: str, limit: int,
                      concurrency: int, outdir: Path) -> tuple[list[dict], str | None]:
@@ -335,11 +352,17 @@ def run_lm_eval_task(task: str, base_url: str, model: str, limit: int,
            "--batch_size", "1"]
     if limit > 0:
         cmd += ["--limit", str(limit)]
+    env = dict(os.environ)
+    if task in CODE_TASKS:
+        # pass@1 scoring executes model-generated code on this machine;
+        # both the CLI flag and the HF metric env var are required opt-ins.
+        cmd += ["--confirm_run_unsafe_code"]
+        env["HF_ALLOW_CODE_EVAL"] = "1"
 
     log(f"lm-eval: {task} (limit={limit or 'full'})")
     log_path = outdir / f"lm-eval-{task}.log"
     with open(log_path, "wb") as f:
-        proc = subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT)
+        proc = subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, env=env)
     if proc.returncode != 0:
         return [], f"lm-eval {task} failed (exit {proc.returncode}); see {log_path.name}"
 
@@ -370,7 +393,8 @@ def run_lm_eval_task(task: str, base_url: str, model: str, limit: int,
                 stderr = metrics.get(f"{key}_stderr")
             rows.append({"task": name, "metric": key, "value": value,
                          "stderr": stderr if isinstance(stderr, (int, float)) else None,
-                         "n": n})
+                         "n": n,
+                         "description": TASK_DESCRIPTIONS.get(name, TASK_DESCRIPTIONS.get(task, ""))})
     return rows, None
 
 
@@ -388,17 +412,18 @@ def fmt(v, digits=3):
 
 def speed_table(points: list[dict]) -> list[str]:
     lines = [
-        "| Prompt tokens | Concurrency | OK | Failed | Server prompt tokens | TTFT mean s | TTFT p50 s | TTFT p95 s | Prefill tok/s | Decode tok/s (per req) | Aggregate output tok/s |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        "| Prompt tokens | Server prompt tokens | TTFT s | Prefill tok/s | Generation tok/s | Total s |",
+        "| --- | --- | --- | --- | --- | --- |",
     ]
     for p in points:
-        lines.append(
-            f"| {p['target_tokens']} | {p['concurrency']} | {p['ok']} | {p['failed']} "
-            f"| {fmt(p.get('prompt_tokens_mean'), 0)} | {fmt(p.get('ttft_mean_s'))} "
-            f"| {fmt(p.get('ttft_p50_s'))} | {fmt(p.get('ttft_p95_s'))} "
-            f"| {fmt(p.get('prefill_tok_s_mean'), 1)} | {fmt(p.get('decode_tok_s_mean'), 2)} "
-            f"| {fmt(p.get('aggregate_tok_s'), 2)} |"
-        )
+        if p["ok"]:
+            lines.append(
+                f"| {p['target_tokens']} | {fmt(p.get('prompt_tokens_mean'), 0)} "
+                f"| {fmt(p.get('ttft_mean_s'))} | {fmt(p.get('prefill_tok_s_mean'), 1)} "
+                f"| {fmt(p.get('decode_tok_s_mean'), 2)} | {fmt(p.get('wall_s'), 2)} |"
+            )
+        else:
+            lines.append(f"| {p['target_tokens']} | | FAILED | | | |")
     return lines
 
 
@@ -438,29 +463,25 @@ def write_report(report_path: Path, ctx: dict) -> None:
         lines.append(f"| {k} | {v} |")
     lines.append("")
 
-    if ctx["ladder_points"] is not None:
-        lines += ["## Speed vs prompt size (concurrency 1)", ""]
-        lines += speed_table(ctx["ladder_points"]) if ctx["ladder_points"] else ["_None._"]
-        lines.append("")
-        lines += ["## Concurrency scaling", ""]
-        if ctx["sweep_points"]:
-            for size, points in ctx["sweep_points"].items():
-                lines += [f"### Prompt size {size} tokens", ""]
-                lines += speed_table(points)
-                lines.append("")
-        else:
-            lines += ["_None._", ""]
+    lines += ["## Speed vs prompt size (single request)", ""]
+    lines += (["_Skipped (--skip-speed)._"] if ctx["ladder_points"] is None
+              else speed_table(ctx["ladder_points"]) if ctx["ladder_points"]
+              else ["_None._"])
+    lines += ["", "TTFT = time to first token. Prefill tok/s = prompt tokens / TTFT. "
+              "Generation tok/s = output tokens per second after the first token.", ""]
 
-    if ctx["eval_rows"] is not None:
-        lines += ["## Intelligence (lm-eval)", ""]
-        if ctx["eval_rows"]:
-            lines += ["| Task | Metric | Value | Stderr | Samples |", "| --- | --- | --- | --- | --- |"]
-            for r in ctx["eval_rows"]:
-                lines.append(f"| {r['task']} | {r['metric']} | {fmt(r['value'], 4)} "
-                             f"| {fmt(r['stderr'], 4)} | {fmt(r['n'], 0)} |")
-        else:
-            lines += ["_None._"]
-        lines.append("")
+    lines += ["## Intelligence (lm-eval)", ""]
+    if ctx["eval_rows"] is None:
+        lines += ["_Skipped (--skip-eval)._"]
+    elif ctx["eval_rows"]:
+        lines += ["| Task | Description | Metric | Value | Stderr | Samples |",
+                  "| --- | --- | --- | --- | --- | --- |"]
+        for r in ctx["eval_rows"]:
+            lines.append(f"| {r['task']} | {r.get('description', '')} | {r['metric']} "
+                         f"| {fmt(r['value'], 4)} | {fmt(r['stderr'], 4)} | {fmt(r['n'], 0)} |")
+    else:
+        lines += ["_None._"]
+    lines.append("")
 
     lines += ["## Warnings", ""]
     if ctx["warnings"]:
@@ -489,11 +510,7 @@ def main() -> None:
     port = int(defaults.get("port", 8000))
     max_model_len = defaults.get("max_model_len")
     max_model_len = int(max_model_len) if max_model_len else None
-    max_num_seqs = defaults.get("max_num_seqs")
     base_url = f"http://127.0.0.1:{port}/v1"
-
-    concurrency_levels = [int(x) for x in str(args.concurrency).split(",") if x.strip()]
-    sweep_sizes = [int(x) for x in str(args.sweep_sizes).split(",") if x.strip()]
 
     ts = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
     outdir = SCRIPT_DIR / "bench-results" / recipe_path.name / ts
@@ -502,10 +519,6 @@ def main() -> None:
     log(f"Recipe: {recipe_path.name} | model {served} | port {port} | artifacts {outdir}")
 
     warnings: list[str] = []
-    if max_num_seqs and max(concurrency_levels, default=0) > int(max_num_seqs):
-        warnings.append(
-            f"Recipe max_num_seqs={max_num_seqs} is below the highest tested concurrency "
-            f"({max(concurrency_levels)}); excess requests queue server-side, inflating TTFT.")
     if args.eval_limit > 0:
         warnings.append(f"lm-eval ran with --limit {args.eval_limit} (per task/subtask); "
                         "scores are comparative samples, not full-benchmark numbers.")
@@ -520,11 +533,12 @@ def main() -> None:
     wait_for_ready(base_url, args.ready_timeout)
     warmup(base_url, served)
 
-    ladder_points = sweep_points = None
+    ladder_points = None
     eval_rows = None
     try:
         if not args.skip_speed:
-            sizes, ladder_warnings = prompt_ladder(args.max_prompt, max_model_len, args.output_tokens)
+            sizes, ladder_warnings = prompt_ladder(args.max_prompt, max_model_len,
+                                                   args.output_tokens, args.steps)
             warnings += ladder_warnings
             log(f"Prompt ladder: {sizes}")
             ladder_points = [
@@ -532,21 +546,10 @@ def main() -> None:
                                 args.request_timeout, args.seed, outdir)
                 for size in sizes
             ]
-            sweep_points = {}
-            for size in sweep_sizes:
-                if max_model_len and size > max_model_len - args.output_tokens - 512:
-                    warnings.append(f"Sweep size {size} skipped: exceeds model context window.")
-                    continue
-                sweep_points[size] = [
-                    run_speed_point(base_url, served, size, c, args.output_tokens,
-                                    args.request_timeout, args.seed, outdir)
-                    for c in concurrency_levels
-                ]
-            for p in ladder_points + [pt for pts in sweep_points.values() for pt in pts]:
+            for p in ladder_points:
                 if p["failed"]:
                     warnings.append(
-                        f"Speed point {p['target_tokens']} tok x c{p['concurrency']}: "
-                        f"{p['failed']} request(s) failed. {'; '.join(p['errors'])}")
+                        f"Speed point {p['target_tokens']} tokens failed: {'; '.join(p['errors'])}")
 
         if not args.skip_eval:
             eval_rows = []
@@ -562,7 +565,7 @@ def main() -> None:
             "args": args, "recipe_path": recipe_path, "recipe": recipe, "defaults": defaults,
             "model_id": model_id, "served": served, "base_url": base_url,
             "outdir": outdir, "host": host_info(),
-            "ladder_points": ladder_points, "sweep_points": sweep_points,
+            "ladder_points": ladder_points,
             "eval_rows": eval_rows, "warnings": warnings,
             "duration_s": time.monotonic() - t_start,
         })
