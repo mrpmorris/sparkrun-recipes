@@ -1,5 +1,0 @@
-{
-  "patched": false,
-  "file": "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/bigcodebench/provider/openai.py",
-  "reason": "pattern not found or already patched"
-}

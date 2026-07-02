@@ -1,64 +1,0 @@
-Greedy decoding ON (--greedy): setting n_samples=1, temperature=0
-Initializing a decoder model: Qwen/Qwen3.6-35B-A3B-FP8 ...
-Codegen: BigCodeBench_13 @ Qwen/Qwen3.6-35B-A3B-FP8
-  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [01:03<00:00, 63.08s/it]100%|██████████| 1/1 [01:03<00:00, 63.08s/it]
-Generated 1 samples
-Codegen: BigCodeBench_15 @ Qwen/Qwen3.6-35B-A3B-FP8
-  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [01:02<00:00, 62.02s/it]100%|██████████| 1/1 [01:02<00:00, 62.02s/it]
-Generated 1 samples
-Codegen: BigCodeBench_17 @ Qwen/Qwen3.6-35B-A3B-FP8
-  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [01:03<00:00, 63.08s/it]100%|██████████| 1/1 [01:03<00:00, 63.08s/it]
-Generated 1 samples
-Codegen: BigCodeBench_19 @ Qwen/Qwen3.6-35B-A3B-FP8
-  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [01:00<00:00, 60.06s/it]100%|██████████| 1/1 [01:00<00:00, 60.06s/it]
-Generated 1 samples
-Codegen: BigCodeBench_34 @ Qwen/Qwen3.6-35B-A3B-FP8
-  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [01:01<00:00, 61.82s/it]100%|██████████| 1/1 [01:01<00:00, 61.82s/it]
-Generated 1 samples
-Codegen: BigCodeBench_37 @ Qwen/Qwen3.6-35B-A3B-FP8
-  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [01:01<00:00, 61.57s/it]100%|██████████| 1/1 [01:01<00:00, 61.57s/it]
-Generated 1 samples
-Codegen: BigCodeBench_82 @ Qwen/Qwen3.6-35B-A3B-FP8
-  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [00:57<00:00, 57.84s/it]100%|██████████| 1/1 [00:57<00:00, 57.84s/it]
-Generated 1 samples
-Codegen: BigCodeBench_89 @ Qwen/Qwen3.6-35B-A3B-FP8
-  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [01:04<00:00, 64.42s/it]100%|██████████| 1/1 [01:04<00:00, 64.42s/it]
-Generated 1 samples
-Codegen: BigCodeBench_92 @ Qwen/Qwen3.6-35B-A3B-FP8
-  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [01:02<00:00, 62.03s/it]100%|██████████| 1/1 [01:02<00:00, 62.03s/it]
-Generated 1 samples
-Codegen: BigCodeBench_93 @ Qwen/Qwen3.6-35B-A3B-FP8
-  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [01:03<00:00, 63.24s/it]100%|██████████| 1/1 [01:03<00:00, 63.24s/it]
-Generated 1 samples
-Codegen: BigCodeBench_99 @ Qwen/Qwen3.6-35B-A3B-FP8
-  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [00:45<00:00, 45.87s/it]100%|██████████| 1/1 [00:45<00:00, 45.87s/it]
-Generated 1 samples
-Codegen: BigCodeBench_100 @ Qwen/Qwen3.6-35B-A3B-FP8
-  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [00:50<00:00, 50.53s/it]100%|██████████| 1/1 [00:50<00:00, 50.53s/it]
-Generated 1 samples
-Codegen: BigCodeBench_101 @ Qwen/Qwen3.6-35B-A3B-FP8
-  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [01:03<00:00, 63.13s/it]100%|██████████| 1/1 [01:03<00:00, 63.13s/it]
-Generated 1 samples
-Codegen: BigCodeBench_108 @ Qwen/Qwen3.6-35B-A3B-FP8
-  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [01:05<00:00, 65.13s/it]100%|██████████| 1/1 [01:05<00:00, 65.13s/it]
-Generated 1 samples
-Codegen: BigCodeBench_120 @ Qwen/Qwen3.6-35B-A3B-FP8
-  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [01:00<00:00, 60.77s/it]100%|██████████| 1/1 [01:00<00:00, 60.77s/it]
-Generated 1 samples
-Codegen: BigCodeBench_123 @ Qwen/Qwen3.6-35B-A3B-FP8
-  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [01:04<00:00, 64.47s/it]100%|██████████| 1/1 [01:04<00:00, 64.47s/it]
-Generated 1 samples
-Codegen: BigCodeBench_124 @ Qwen/Qwen3.6-35B-A3B-FP8
-  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [01:00<00:00, 60.94s/it]100%|██████████| 1/1 [01:00<00:00, 60.94s/it]
-Generated 1 samples
-Codegen: BigCodeBench_129 @ Qwen/Qwen3.6-35B-A3B-FP8
-  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [00:58<00:00, 58.67s/it]100%|██████████| 1/1 [00:58<00:00, 58.67s/it]
-Generated 1 samples
-Codegen: BigCodeBench_139 @ Qwen/Qwen3.6-35B-A3B-FP8
-  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [01:01<00:00, 61.96s/it]100%|██████████| 1/1 [01:01<00:00, 61.97s/it]
-Generated 1 samples
-Codegen: BigCodeBench_147 @ Qwen/Qwen3.6-35B-A3B-FP8
-  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [01:01<00:00, 61.05s/it]100%|██████████| 1/1 [01:01<00:00, 61.05s/it]
-Generated 1 samples
-BigCodeBench--Instruct (Hard) • 14% ━━━━━                                     20/148 • 0:20:25
-/home/mrpmorris/sparkrun-recipes/bench-results/Qwen3.6-35B-A3B-FP8.yaml/20260702-123424/bigcodebench/Qwen--Qwen3.6-35B-A3B-FP8--main--bigcodebench-hard-instruct--openai-0-1-sanitized_calibrated.jsonl

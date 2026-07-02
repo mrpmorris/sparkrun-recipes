@@ -1,40 +1,0 @@
-/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.7.0) or chardet (6.0.0.post1)/charset_normalizer (3.4.7) doesn't match a supported version!
-  warnings.warn(
-Greedy decoding ON (--greedy): setting n_samples=1, temperature=0
-Initializing a decoder model: Qwen/Qwen3.6-35B-A3B-FP8 ...
-Generating v0.1.0_hf split:   0%|          | 0/148 [00:00<?, ? examples/s]Generating v0.1.0_hf split: 100%|██████████| 148/148 [00:00<00:00, 5355.09 examples/s]
-Generating v0.1.1 split:   0%|          | 0/148 [00:00<?, ? examples/s]Generating v0.1.1 split: 100%|██████████| 148/148 [00:00<00:00, 54390.34 examples/s]
-Generating v0.1.2 split:   0%|          | 0/148 [00:00<?, ? examples/s]Generating v0.1.2 split: 100%|██████████| 148/148 [00:00<00:00, 65967.80 examples/s]
-Generating v0.1.3 split:   0%|          | 0/148 [00:00<?, ? examples/s]Generating v0.1.3 split: 100%|██████████| 148/148 [00:00<00:00, 59705.40 examples/s]
-Generating v0.1.4 split:   0%|          | 0/148 [00:00<?, ? examples/s]Generating v0.1.4 split: 100%|██████████| 148/148 [00:00<00:00, 43922.52 examples/s]
-Creating json from Arrow format:   0%|          | 0/1 [00:00<?, ?ba/s]Creating json from Arrow format: 100%|██████████| 1/1 [00:00<00:00, 87.37ba/s]
-Codegen: BigCodeBench_13 @ Qwen/Qwen3.6-35B-A3B-FP8
-  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [00:20<00:00, 20.75s/it]100%|██████████| 1/1 [00:20<00:00, 20.75s/it]
-BigCodeBench--Instruct (Hard) •  0%                                            0/148 • 0:00:20
-Traceback (most recent call last):
-  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/bin/bigcodebench.generate", line 6, in <module>
-    sys.exit(main())
-             ^^^^^^
-  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/bigcodebench/generate.py", line 237, in main
-    Fire(run_codegen)
-  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/fire/core.py", line 135, in Fire
-    component_trace = _Fire(component, args, parsed_flag_args, context, name)
-                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/fire/core.py", line 468, in _Fire
-    component, remaining_args = _CallAndUpdateTrace(
-                                ^^^^^^^^^^^^^^^^^^^^
-  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/fire/core.py", line 684, in _CallAndUpdateTrace
-    component = fn(*varargs, **kwargs)
-                ^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/bigcodebench/generate.py", line 219, in run_codegen
-    codegen(
-  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/bigcodebench/generate.py", line 112, in codegen
-    dict(task_id=task_id, solution=sanitize(completion, entry_point), raw_solution=completion)
-                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/bigcodebench/sanitize.py", line 183, in sanitize
-    sanitized_code = extract_target_code_or_empty(code, entrypoint).strip()
-                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/mrpmorris/sparkrun-recipes/.benchllm-venv/lib/python3.12/site-packages/bigcodebench/sanitize.py", line 112, in extract_target_code_or_empty
-    code = code_extract(code.strip())
-                        ^^^^^^^^^^
-AttributeError: 'NoneType' object has no attribute 'strip'
