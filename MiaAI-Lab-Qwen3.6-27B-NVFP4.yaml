@@ -25,7 +25,7 @@ metadata:
 
 defaults:
   host: 0.0.0.0
-  port: 8888
+  port: 8000
   served_model_name: nvidia/Qwen3.6-27B-NVFP4
   tensor_parallel: 1
   pipeline_parallel: 1

@@ -66,9 +66,12 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--max-prompt", type=int, default=260_000, help="Ceiling for the prompt-size ladder (default 260000)")
     p.add_argument("--steps", type=int, default=8, help="Number of prompt-size steps up to the ceiling (default 8, i.e. max/8 increments)")
     p.add_argument("--output-tokens", type=int, default=256, help="Generation length for speed tests (default 256)")
-    p.add_argument("--eval-tasks", default="mmlu,gsm8k,arc_challenge,hellaswag,humaneval,mbpp",
-                   help="lm-eval tasks (default mmlu,gsm8k,arc_challenge,hellaswag,humaneval,mbpp)")
-    p.add_argument("--eval-limit", type=int, default=100, help="Samples per lm-eval task, 0 = full run (default 100)")
+    p.add_argument("--eval-tasks", default="mmlu:10,gsm8k,arc_challenge,hellaswag,humaneval,mbpp",
+                   help="lm-eval tasks, each optionally with its own sample limit as task:limit. "
+                        "MMLU has 57 subtasks and the limit applies per subtask, so it defaults to 10 "
+                        "(= 570 questions). (default mmlu:10,gsm8k,arc_challenge,hellaswag,humaneval,mbpp)")
+    p.add_argument("--eval-limit", type=int, default=100,
+                   help="Samples per lm-eval task without an explicit task:limit, 0 = full run (default 100)")
     p.add_argument("--eval-concurrency", type=int, default=4, help="Concurrent lm-eval requests (default 4)")
     p.add_argument("--ready-timeout", type=int, default=3600, help="Seconds to wait for the model endpoint (default 3600)")
     p.add_argument("--request-timeout", type=int, default=1800, help="Per-request read timeout in seconds (default 1800)")
@@ -291,6 +294,26 @@ def run_speed_point(base_url: str, model: str, size: int, concurrency: int,
         log(f"  ALL {concurrency} requests failed: {errors[:1]}")
     (outdir / f"speed-{size}tok-c{concurrency}.json").write_text(json.dumps(point, indent=2))
     return point
+
+
+def load_previous_speed(results_root: Path, current_outdir: Path):
+    """With --skip-speed, reuse the newest earlier run's speed points so the report stays complete."""
+    if not results_root.is_dir():
+        return None, None
+    for run_dir in sorted((d for d in results_root.iterdir() if d.is_dir() and d != current_outdir),
+                          key=lambda d: d.name, reverse=True):
+        points = []
+        for f in run_dir.glob("speed-*.json"):
+            try:
+                p = json.loads(f.read_text(encoding="utf-8"))
+            except Exception:  # noqa: BLE001
+                continue
+            if p.get("ok") and p.get("concurrency", 1) == 1:
+                points.append(p)
+        if points:
+            points.sort(key=lambda p: p["target_tokens"])
+            return points, f"Speed section reused from earlier run {run_dir.name} (--skip-speed)."
+    return None, None
 
 
 def prompt_ladder(max_prompt: int, max_model_len, output_tokens: int, steps: int) -> tuple[list[int], list[str]]:
@@ -519,9 +542,10 @@ def main() -> None:
     log(f"Recipe: {recipe_path.name} | model {served} | port {port} | artifacts {outdir}")
 
     warnings: list[str] = []
-    if args.eval_limit > 0:
-        warnings.append(f"lm-eval ran with --limit {args.eval_limit} (per task/subtask); "
-                        "scores are comparative samples, not full-benchmark numbers.")
+    if args.eval_limit > 0 or ":" in args.eval_tasks:
+        warnings.append(f"lm-eval ran with sample limits (default {args.eval_limit}, per task/subtask; "
+                        f"tasks: {args.eval_tasks}); scores are comparative samples, "
+                        "not full-benchmark numbers.")
 
     # Make Ctrl+C / SIGTERM run atexit handlers (stops the workload).
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -550,11 +574,18 @@ def main() -> None:
                 if p["failed"]:
                     warnings.append(
                         f"Speed point {p['target_tokens']} tokens failed: {'; '.join(p['errors'])}")
+        else:
+            ladder_points, reuse_note = load_previous_speed(
+                SCRIPT_DIR / "bench-results" / recipe_path.name, outdir)
+            if reuse_note:
+                warnings.append(reuse_note)
 
         if not args.skip_eval:
             eval_rows = []
-            for task in [t.strip() for t in args.eval_tasks.split(",") if t.strip()]:
-                rows, err = run_lm_eval_task(task, base_url, served, args.eval_limit,
+            for spec in [t.strip() for t in args.eval_tasks.split(",") if t.strip()]:
+                task, sep, lim = spec.partition(":")
+                limit = int(lim) if sep else args.eval_limit
+                rows, err = run_lm_eval_task(task, base_url, served, limit,
                                              args.eval_concurrency, outdir)
                 eval_rows += rows
                 if err:
