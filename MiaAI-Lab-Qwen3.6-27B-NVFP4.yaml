@@ -7,11 +7,15 @@
 recipe_version: '2'
 
 model: nvidia/Qwen3.6-27B-NVFP4
+
 runtime: vllm
+
 builder: eugr
+
 container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly:latest
 
 min_nodes: 1
+
 max_nodes: 1
 
 metadata:
@@ -22,27 +26,21 @@ metadata:
 defaults:
   host: 0.0.0.0
   port: 8888
-
   served_model_name: nvidia/Qwen3.6-27B-NVFP4
-
   tensor_parallel: 1
   pipeline_parallel: 1
-
   gpu_memory_utilization: 0.4
   max_model_len: 262144
   max_num_seqs: 4
   max_num_batched_tokens: 8192
-
   quantization: modelopt
   load_format: fastsafetensors
   attention_backend: flashinfer
   moe_backend: marlin
-
   reasoning_parser: qwen3
   tool_call_parser: qwen3_coder
-
   speculative_config: '{"method":"mtp","num_speculative_tokens":3,"moe_backend":"triton"}'
-  generation_config: '{"temperature":0.6,"top_p":0.95,"top_k":20,"min_p":0.0,"presence_penalty":0.0,"repetition_penalty":1.0}'
+  generation_config: '{"temperature":0.6,"top_p":0.95,"top_k":20,"min_p":0.0,"presence_penalty":1.5,"repetition_penalty":1.0}'
 
 env:
   VLLM_TARGET_DEVICE: cuda

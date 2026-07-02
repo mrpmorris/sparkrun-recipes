@@ -11,6 +11,7 @@ export PATH="$HOME/.local/bin:$PATH"
 VENV="$SCRIPT_DIR/.benchllm-venv"
 DEPS=(
   "lm-eval[api]==0.4.12"
+  "transformers>=4.50"
   "requests>=2.32"
   "tiktoken>=0.8"
   "pyyaml>=6.0"

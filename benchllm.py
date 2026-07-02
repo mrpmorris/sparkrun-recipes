@@ -324,6 +324,7 @@ def run_lm_eval_task(task: str, base_url: str, model: str, limit: int,
         f"base_url={base_url}/completions,"
         f"num_concurrent={concurrency},"
         f"max_retries=3,"
+        f"max_length=8192,"
         f"tokenized_requests=False"
     )
     cmd = [sys.executable, "-m", "lm_eval",
@@ -360,7 +361,7 @@ def run_lm_eval_task(task: str, base_url: str, model: str, limit: int,
     for name, metrics in entries.items():
         n = (n_samples.get(name) or {}).get("effective")
         for key, value in metrics.items():
-            if key == "alias" or "_stderr" in key or not isinstance(value, (int, float)):
+            if key in ("alias", "sample_len") or "_stderr" in key or not isinstance(value, (int, float)):
                 continue
             if "," in key:
                 base, variant = key.split(",", 1)
