@@ -22,6 +22,7 @@ import json
 import math
 import os
 import random
+import re
 import shutil
 import signal
 import statistics
@@ -78,6 +79,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--seed", type=int, default=0, help="Base seed for prompt generation (default 0)")
     p.add_argument("--skip-speed", action="store_true", help="Skip the speed benchmark")
     p.add_argument("--skip-eval", action="store_true", help="Skip the intelligence benchmark")
+    p.add_argument("--skip-run", action="store_true",
+                   help="Don't launch or stop the model; benchmark an instance you started yourself "
+                        "(e.g. with `sparkrun run <recipe> -o speculative_config=''`)")
     return p.parse_args()
 
 
@@ -354,6 +358,30 @@ TASK_DESCRIPTIONS = {
 }
 
 
+def failure(task: str, log_path: Path, fallback: str) -> dict:
+    """Build a structured failure record, extracting the server's real error from the log."""
+    reason = fallback
+    try:
+        text = log_path.read_text(encoding="utf-8", errors="replace")
+    except Exception:  # noqa: BLE001
+        text = ""
+    # vLLM returns the true cause in the OpenAI-style error body echoed by lm-eval.
+    m = re.findall(r'Status code:\s*(\d+),\s*Response text:\s*(\{.*\})', text)
+    if m:
+        code, body = m[-1]
+        try:
+            msg = json.loads(body).get("error", {}).get("message", body)
+        except Exception:  # noqa: BLE001
+            msg = body
+        reason = f"HTTP {code} from inference server: {msg}"
+    else:
+        exc = re.findall(r'^(?:\w+\.)*\w*(?:Error|Exception):\s*.+$', text, re.MULTILINE)
+        if exc:
+            reason = exc[-1].strip()
+    return {"task": task, "reason": reason[:400], "log": log_path.name,
+            "description": TASK_DESCRIPTIONS.get(task, "")}
+
+
 def run_lm_eval_task(task: str, base_url: str, model: str, limit: int,
                      concurrency: int, outdir: Path) -> tuple[list[dict], str | None]:
     """Run one lm-eval task. Returns (metric rows, error string or None)."""
@@ -387,11 +415,11 @@ def run_lm_eval_task(task: str, base_url: str, model: str, limit: int,
     with open(log_path, "wb") as f:
         proc = subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, env=env)
     if proc.returncode != 0:
-        return [], f"lm-eval {task} failed (exit {proc.returncode}); see {log_path.name}"
+        return [], failure(task, log_path, f"exit code {proc.returncode}")
 
     result_files = sorted(eval_dir.rglob("results_*.json"), key=lambda p: p.stat().st_mtime)
     if not result_files:
-        return [], f"lm-eval {task} produced no results JSON"
+        return [], failure(task, log_path, "produced no results JSON")
     data = json.loads(result_files[-1].read_text())
 
     entries = {}
@@ -493,18 +521,34 @@ def write_report(report_path: Path, ctx: dict) -> None:
     lines += ["", "TTFT = time to first token. Prefill tok/s = prompt tokens / TTFT. "
               "Generation tok/s = output tokens per second after the first token.", ""]
 
+    failures = ctx.get("eval_failures") or []
     lines += ["## Intelligence (lm-eval)", ""]
     if ctx["eval_rows"] is None:
-        lines += ["_Skipped (--skip-eval)._"]
-    elif ctx["eval_rows"]:
-        lines += ["| Task | Description | Metric | Value | Stderr | Samples |",
-                  "| --- | --- | --- | --- | --- | --- |"]
-        for r in ctx["eval_rows"]:
-            lines.append(f"| {r['task']} | {r.get('description', '')} | {r['metric']} "
-                         f"| {fmt(r['value'], 4)} | {fmt(r['stderr'], 4)} | {fmt(r['n'], 0)} |")
+        lines += ["_Skipped (--skip-eval)._", ""]
     else:
-        lines += ["_None._"]
-    lines.append("")
+        succeeded = {r["task"] for r in ctx["eval_rows"]}
+        failed = {f["task"] for f in failures}
+        lines += [f"{len(succeeded)} task(s) completed, {len(failed)} failed.", ""]
+        if ctx["eval_rows"]:
+            lines += ["| Task | Description | Metric | Value | Stderr | Samples |",
+                      "| --- | --- | --- | --- | --- | --- |"]
+            for r in ctx["eval_rows"]:
+                lines.append(f"| {r['task']} | {r.get('description', '')} | {r['metric']} "
+                             f"| {fmt(r['value'], 4)} | {fmt(r['stderr'], 4)} | {fmt(r['n'], 0)} |")
+            lines.append("")
+
+    if failures:
+        lines += ["### Failed benchmarks", "",
+                  "These benchmarks could not complete as the model is currently served — a failure "
+                  "here is itself a result: the model/config could not perform this evaluation. "
+                  "Multiple-choice tasks (acc / acc_norm) request token log-probabilities from the "
+                  "inference server; generative tasks do not.", "",
+                  "| Task | Description | Reason | Log |",
+                  "| --- | --- | --- | --- |"]
+        for f in failures:
+            lines.append(f"| {f['task']} | {f.get('description', '')} "
+                         f"| {f['reason']} | {f['log']} |")
+        lines.append("")
 
     lines += ["## Warnings", ""]
     if ctx["warnings"]:
@@ -553,12 +597,16 @@ def main() -> None:
 
     sparkrun = find_sparkrun()
     workload = Workload(sparkrun, recipe_path, outdir / "sparkrun.log")
-    workload.start()
+    if args.skip_run:
+        log("--skip-run: benchmarking an externally-managed instance (won't launch or stop it).")
+    else:
+        workload.start()
     wait_for_ready(base_url, args.ready_timeout)
     warmup(base_url, served)
 
     ladder_points = None
     eval_rows = None
+    eval_failures: list[dict] = []
     try:
         if not args.skip_speed:
             sizes, ladder_warnings = prompt_ladder(args.max_prompt, max_model_len,
@@ -589,15 +637,17 @@ def main() -> None:
                                              args.eval_concurrency, outdir)
                 eval_rows += rows
                 if err:
-                    warnings.append(err)
+                    eval_failures.append(err)
+                    log(f"  FAILED {task}: {err['reason']}")
     finally:
-        workload.stop()
+        if not args.skip_run:
+            workload.stop()
         write_report(report_path, {
             "args": args, "recipe_path": recipe_path, "recipe": recipe, "defaults": defaults,
             "model_id": model_id, "served": served, "base_url": base_url,
             "outdir": outdir, "host": host_info(),
             "ladder_points": ladder_points,
-            "eval_rows": eval_rows, "warnings": warnings,
+            "eval_rows": eval_rows, "eval_failures": eval_failures, "warnings": warnings,
             "duration_s": time.monotonic() - t_start,
         })
 

@@ -1,2 +1,3 @@
 .benchllm-venv/
 bench-results/
+__pycache__/
