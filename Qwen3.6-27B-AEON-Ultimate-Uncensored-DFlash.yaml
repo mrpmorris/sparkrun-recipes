@@ -1,0 +1,84 @@
+# Source:
+# https://github.com/AEON-7/Qwen3.6-27B-AEON-Ultimate-Uncensored-DFlash
+#
+# Model:
+# https://huggingface.co/AEON-7/Qwen3.6-27B-AEON-Ultimate-Uncensored-Multimodal-NVFP4-MTP-XS
+#
+# DFlash drafter:
+# https://huggingface.co/z-lab/Qwen3.6-27B-DFlash
+
+recipe_version: '2'
+
+model: AEON-7/Qwen3.6-27B-AEON-Ultimate-Uncensored-Multimodal-NVFP4-MTP-XS
+
+runtime: vllm
+builder: eugr
+container: ghcr.io/aeon-7/aeon-vllm-ultimate:latest
+
+min_nodes: 1
+max_nodes: 1
+
+metadata:
+  description: "Qwen3.6-27B AEON Ultimate Uncensored - NVFP4 modelopt, DFlash spec-decode, 200K context, multimodal"
+  model_params: 27B
+  model_dtype: nvfp4
+
+defaults:
+  host: 0.0.0.0
+  port: 8000
+
+  served_model_name: AEON-7/Qwen3.6-27B-AEON-Ultimate-Uncensored-DFlash
+
+  tensor_parallel: 1
+  pipeline_parallel: 1
+
+  gpu_memory_utilization: 0.85
+  max_model_len: 200000
+  max_num_seqs: 16
+  max_num_batched_tokens: 16384
+
+  quantization: modelopt
+  mamba_cache_dtype: float32
+  attention_backend: flash_attn
+
+  reasoning_parser: qwen3
+  tool_call_parser: qwen3_coder
+
+  # DFlash speculative decoding with the external drafter (pulled from HF).
+  speculative_config: '{"method":"dflash","model":"z-lab/Qwen3.6-27B-DFlash","num_speculative_tokens":10}'
+  generation_config: '{"temperature":0.6,"top_p":0.95,"top_k":20,"min_p":0.0,"presence_penalty":0.0,"repetition_penalty":1.0}'
+
+env:
+  VLLM_TARGET_DEVICE: cuda
+  VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
+  TORCH_CUDA_ARCH_LIST: "12.1a"
+  NVIDIA_FORWARD_COMPAT: "1"
+  ENABLE_NVFP4_SM100: "0"
+  VLLM_USE_FLASHINFER_SAMPLER: "1"
+  VLLM_NVFP4_GEMM_BACKEND: "flashinfer-cutlass"
+  HF_TOKEN: "${HF_TOKEN}"
+
+command: |
+  vllm serve {model} \
+    --served-model-name {served_model_name} \
+    --host {host} \
+    --port {port} \
+    -tp {tensor_parallel} \
+    -pp {pipeline_parallel} \
+    --trust-remote-code \
+    --quantization {quantization} \
+    --mamba-cache-dtype {mamba_cache_dtype} \
+    --attention-backend {attention_backend} \
+    --gpu-memory-utilization {gpu_memory_utilization} \
+    --max-model-len {max_model_len} \
+    --max-num-seqs {max_num_seqs} \
+    --max-num-batched-tokens {max_num_batched_tokens} \
+    --enable-chunked-prefill \
+    --enable-prefix-caching \
+    --limit-mm-per-prompt '{"image":4,"video":2}' \
+    --mm-encoder-tp-mode data \
+    --speculative-config '{speculative_config}' \
+    --reasoning-parser {reasoning_parser} \
+    --override-generation-config '{generation_config}' \
+    --tool-call-parser {tool_call_parser} \
+    --enable-auto-tool-choice
