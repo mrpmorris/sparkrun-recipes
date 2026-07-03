@@ -15,6 +15,13 @@ runtime: vllm
 builder: eugr
 container: ghcr.io/aeon-7/aeon-vllm-ultimate:latest
 
+# The AEON image sets ENTRYPOINT ["/bin/bash"]. sparkrun launches the serve
+# command via `bash -c <cmd>`, so that entrypoint must be cleared or docker
+# runs `/bin/bash bash -c ...`, which fails with exit 126
+# ("cannot execute binary file"). Empty string clears the image ENTRYPOINT.
+executor_config:
+  entrypoint: ""
+
 min_nodes: 1
 max_nodes: 1
 
@@ -33,7 +40,7 @@ defaults:
   pipeline_parallel: 1
 
   gpu_memory_utilization: 0.85
-  max_model_len: 200000
+  max_model_len: 262144
   max_num_seqs: 16
   max_num_batched_tokens: 16384
 
