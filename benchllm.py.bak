@@ -369,29 +369,21 @@ def load_previous_speed(results_root: Path, current_outdir: Path):
 
 
 def prompt_ladder(max_prompt: int, max_model_len, output_tokens: int, steps: int) -> tuple[list[int], list[str]]:
-    """Geometric ladder: 256, then x4 each step (1024, 4096, 16384, ...). The ceiling is
-    the usable prompt budget = max length minus the requested output tokens minus a small
-    margin for tokenizer skew (the prompt is sized with o200k_base but the model may count
-    a bit more). A top rung is added at exactly the budget so the ladder does not stop short
-    of the context window."""
+    """Geometric ladder: 256, then x4 each step (1024, 4096, 16384, ...). A step is
+    included as long as it does not exceed the max length; the ladder simply stops once
+    the next x4 step would go over. No clamping and no reserve for output tokens - the
+    only ceiling is the max length itself."""
     warnings = []
-    hard = max_model_len if max_model_len else max_prompt
-    # Reserve output tokens + ~1% (min 256) for o200k_base vs model-tokenizer drift.
-    margin = max(256, hard // 100)
-    limit = hard - output_tokens - margin
-    if max_prompt < limit:
-        limit = max_prompt
+    limit = max_model_len if max_model_len else max_prompt
     sizes = []
     size = 256
     while size <= limit:
         sizes.append(size)
         size *= 4
-    # Add an exact top rung at the usable budget if the x4 ladder stopped short of it.
-    if sizes and sizes[-1] < limit:
-        sizes.append(limit)
+    if size > limit:
         warnings.append(
-            f"Top prompt rung capped at {limit} tokens (max length {hard} minus "
-            f"{output_tokens} output tokens and {margin} tokenizer-skew margin).")
+            f"Prompt sizes beyond {limit} tokens skipped (next x4 step {size} exceeds the "
+            f"max length; max_model_len={max_model_len}, --max-prompt={max_prompt}).")
     return sizes, warnings
 
 

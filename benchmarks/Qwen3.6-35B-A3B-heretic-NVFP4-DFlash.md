@@ -1,6 +1,6 @@
 # Qwen3.6-35B-A3B-heretic-NVFP4-DFlash.yaml benchmark results
 
-Generated UTC: 2026-07-04T22:58:55.212300+00:00
+Generated UTC: 2026-07-04T23:19:25.523514+00:00
 
 ## Run
 
@@ -14,9 +14,9 @@ Generated UTC: 2026-07-04T22:58:55.212300+00:00
 | Base URL | http://127.0.0.1:8000/v1 |
 | Host | Linux 6.17.0-1026-nvidia aarch64 GNU/Linux |
 | GPU | NVIDIA GB10 |
-| Output dir | /home/mrpmorris/sparkrun-recipes/bench-results/Qwen3.6-35B-A3B-heretic-NVFP4-DFlash.yaml/20260704-224329 |
-| Command | /home/mrpmorris/sparkrun-recipes/benchllm.py --recipe Qwen3.6-35B-A3B-heretic-NVFP4-DFlash.yaml |
-| Total duration | 926 s |
+| Output dir | /home/mrpmorris/sparkrun-recipes/bench-results/Qwen3.6-35B-A3B-heretic-NVFP4-DFlash.yaml/20260704-230921 |
+| Command | /home/mrpmorris/sparkrun-recipes/benchllm.py --recipe Qwen3.6-35B-A3B-heretic-NVFP4-DFlash.yaml --skip-eval |
+| Total duration | 604 s |
 
 ## Recipe settings
 
@@ -42,30 +42,18 @@ Generated UTC: 2026-07-04T22:58:55.212300+00:00
 
 | Prompt tokens | Server prompt tokens | TTFT s | TPOT ms | Prefill tok/s | Generation tok/s | Total s |
 | --- | --- | --- | --- | --- | --- | --- |
-| 256 | 271 | 0.347 | 8.5 | 780.3 | 117.52 | 2.53 |
-| 1024 | 1041 | 0.400 | 8.7 | 2603.4 | 115.79 | 2.61 |
-| 4096 | 4114 | 0.734 | 10.9 | 5608.3 | 91.77 | 3.52 |
-| 16384 | 16399 | 2.780 | 13.6 | 5898.3 | 73.60 | 6.26 |
-| 65536 | 65552 | 14.042 | 25.3 | 4668.3 | 39.73 | 20.49 |
-| 262144 | | FAILED | | | | |
+| 256 | 272 | 0.172 | 13.0 | 1584.0 | 77.47 | 3.48 |
+| 1024 | 1039 | 0.241 | 8.7 | 4302.8 | 114.93 | 2.47 |
+| 4096 | 4111 | 0.731 | 10.3 | 5625.3 | 97.03 | 3.37 |
+| 16384 | 16398 | 2.760 | 12.7 | 5942.2 | 79.01 | 6.00 |
+| 65536 | 65549 | 13.998 | 25.9 | 4682.7 | 38.77 | 20.60 |
+| 259267 | 259286 | 113.589 | 68.4 | 2282.7 | 14.68 | 131.03 |
 
 TTFT = time to first token. TPOT = time per output token (mean inter-token latency after the first token). Prefill tok/s = prompt tokens / TTFT. Generation tok/s = output tokens per second after the first token.
 
 ## Intelligence (lm-eval)
 
-6 task(s) completed, 0 failed.
-
-| Task | Description | Metric | Value | Stderr | Samples |
-| --- | --- | --- | --- | --- | --- |
-| mmlu | General knowledge across 57 academic subjects | acc,none | 0.8368 | 0.0151 |  |
-| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,strict-match | 0.0900 | 0.0288 | 100 |
-| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,flexible-extract | 0.1000 | 0.0302 | 100 |
-| arc_challenge | Hard science exam questions (reasoning) | acc,none | 0.5400 | 0.0501 | 100 |
-| arc_challenge | Hard science exam questions (reasoning) | acc_norm,none | 0.5200 | 0.0502 | 100 |
-| hellaswag | Commonsense sentence completion | acc,none | 0.5900 | 0.0494 | 100 |
-| hellaswag | Commonsense sentence completion | acc_norm,none | 0.7500 | 0.0435 | 100 |
-| humaneval | Coding: write Python functions that pass unit tests | pass@1,create_test | 0.7200 | 0.0451 | 100 |
-| mbpp | Coding: basic Python programming problems, graded by unit tests | pass_at_1,none | 0.6000 | 0.0492 | 100 |
+_Skipped (--skip-eval)._
 
 ## Tool calling (BFCL v4 via EvalScope)
 
@@ -74,5 +62,4 @@ _Skipped (pass --with-bfcl to run)._
 ## Warnings
 
 - lm-eval ran with sample limits (default 100, per task/subtask; tasks: mmlu:10,gsm8k,arc_challenge,hellaswag,humaneval,mbpp); scores are comparative samples, not full-benchmark numbers.
-- Prompt sizes beyond 262144 tokens skipped (next x4 step 1048576 exceeds the max length; max_model_len=262144, --max-prompt=260000).
-- Speed point 262144 tokens failed: HTTPError: 400 Client Error: Bad Request for url: http://127.0.0.1:8000/v1/chat/completions
+- Top prompt rung capped at 259267 tokens (max length 262144 minus 256 output tokens and 2621 tokenizer-skew margin).

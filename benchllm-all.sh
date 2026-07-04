@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# benchllm-all.sh — run benchllm.sh across every valid recipe.
+#
+# Targets:
+#   1. Every *.yaml recipe file in this script's folder.
+#   2. Every built-in recipe from `sparkrun list` whose TP column is `1`
+#      or is not a number (e.g. `-`). Recipes needing TP > 1 are skipped
+#      because this box is a single GB10 (tensor parallel > 1 won't fit).
+#
+# Any extra arguments are passed straight through to benchllm.sh, e.g.:
+#   ./benchllm-all.sh --skip-eval
+#   ./benchllm-all.sh --with-bfcl --eval-limit 50
+set -Eeuo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+export PATH="$HOME/.local/bin:$PATH"
+
+BENCHLLM="$SCRIPT_DIR/benchllm.sh"
+[[ -x "$BENCHLLM" ]] || { echo "benchllm-all: $BENCHLLM not found or not executable" >&2; exit 1; }
+
+# --- Build the list of recipes to run -------------------------------------
+recipes=()
+
+# 1. Local YAML recipes in this folder.
+shopt -s nullglob
+for f in "$SCRIPT_DIR"/*.yaml "$SCRIPT_DIR"/*.yml; do
+  recipes+=("$f")
+done
+shopt -u nullglob
+
+# 2. Built-in recipes with TP == 1 or TP not a number.
+if command -v sparkrun >/dev/null 2>&1; then
+  while IFS= read -r name; do
+    [[ -n "$name" ]] && recipes+=("$name")
+  done < <(sparkrun list 2>/dev/null \
+             | awk '/^@/ { if ($3 == "1" || $3 !~ /^[0-9]+$/) print $1 }')
+else
+  echo "benchllm-all: WARNING — sparkrun not on PATH; skipping built-in recipes." >&2
+fi
+
+if [[ ${#recipes[@]} -eq 0 ]]; then
+  echo "benchllm-all: no recipes found." >&2
+  exit 1
+fi
+
+echo "benchllm-all: ${#recipes[@]} recipe(s) to benchmark:"
+printf '  - %s\n' "${recipes[@]}"
+echo
+
+# --- Run each recipe, continuing past failures -----------------------------
+declare -a ok_list=() fail_list=()
+for recipe in "${recipes[@]}"; do
+  echo "============================================================"
+  echo "benchllm-all: >>> $recipe"
+  echo "============================================================"
+  if "$BENCHLLM" --recipe "$recipe" "$@"; then
+    ok_list+=("$recipe")
+  else
+    rc=$?
+    echo "benchllm-all: !!! $recipe FAILED (exit $rc)" >&2
+    fail_list+=("$recipe")
+  fi
+  echo
+done
+
+# --- Summary ---------------------------------------------------------------
+echo "============================================================"
+echo "benchllm-all: summary — ${#ok_list[@]} ok, ${#fail_list[@]} failed"
+echo "============================================================"
+[[ ${#ok_list[@]}   -gt 0 ]] && printf '  ok    %s\n' "${ok_list[@]}"
+[[ ${#fail_list[@]} -gt 0 ]] && printf '  FAIL  %s\n' "${fail_list[@]}"
+
+[[ ${#fail_list[@]} -eq 0 ]]
