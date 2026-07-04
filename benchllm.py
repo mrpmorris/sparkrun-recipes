@@ -4,12 +4,17 @@
 Run via ./benchllm.sh, which provisions the virtualenv and dependencies, e.g.:
 
   ./benchllm.sh --recipe MiaAI-Lab-Qwen3.6-27B-NVFP4.yaml
+  ./benchllm.sh --recipe @sparkrun-transitional/qwen3-1.7b-vllm
+
+--recipe accepts either a local recipe file or the name of a recipe from sparkrun's
+registries (anything `sparkrun list` shows); names are resolved with
+`sparkrun export recipe <name>`.
 
 The script launches the recipe with `sparkrun run`, waits for the OpenAI-compatible
 endpoint to come up, measures single-request speed (TTFT, prefill/generation tok/s)
 across a ladder of prompt sizes up to the model max, runs lm-eval intelligence and
-coding benchmarks, writes `<recipe stem>.md` next to the recipe, and stops the
-workload again (guaranteed via atexit/signal traps).
+coding benchmarks, writes `benchmarks/<recipe stem>.md` next to this script, and
+stops the workload again (guaranteed via atexit/signal traps).
 """
 
 from __future__ import annotations
@@ -29,6 +34,7 @@ import statistics
 import subprocess
 import sys
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 import requests
@@ -63,7 +69,10 @@ def log(msg: str) -> None:
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Benchmark a sparkrun recipe (speed + intelligence).")
-    p.add_argument("--recipe", required=True, help="Recipe filename or path (resolved relative to this script)")
+    p.add_argument("--recipe", required=True,
+                   help="Recipe file (resolved relative to this script) or the name of a recipe "
+                        "from sparkrun's registries, e.g. @sparkrun-transitional/qwen3-1.7b-vllm "
+                        "(see `sparkrun list`)")
     p.add_argument("--max-prompt", type=int, default=260_000, help="Ceiling for the prompt-size ladder (default 260000)")
     p.add_argument("--steps", type=int, default=8, help="Number of prompt-size steps up to the ceiling (default 8, i.e. max/8 increments)")
     p.add_argument("--output-tokens", type=int, default=256, help="Generation length for speed tests (default 256)")
@@ -93,11 +102,37 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-def resolve_recipe(arg: str) -> Path:
+@dataclass(frozen=True)
+class Recipe:
+    """A benchmark target: a local recipe file, or a recipe name from sparkrun's registries."""
+    ref: str           # what sparkrun run/stop is given (file path, or registry recipe name)
+    display: str       # short human-readable name for logs and the report title
+    results_name: str  # directory name under bench-results/
+    stem: str          # report file stem (benchmarks/<stem>.md)
+    data: dict         # parsed recipe YAML
+
+
+def resolve_recipe(arg: str, sparkrun: str) -> Recipe:
+    """Resolve --recipe: a local file first, then a recipe name known to sparkrun."""
     for candidate in (Path(arg), SCRIPT_DIR / arg, SCRIPT_DIR / f"{arg}.yaml"):
         if candidate.is_file():
-            return candidate.resolve()
-    sys.exit(f"ERROR: recipe not found: {arg}")
+            path = candidate.resolve()
+            data = yaml.safe_load(path.read_text(encoding="utf-8"))
+            return Recipe(ref=str(path), display=path.name,
+                          results_name=path.name, stem=path.stem, data=data)
+    # Not a file: ask sparkrun for the registry recipe of that name (as listed by `sparkrun list`).
+    proc = subprocess.run([sparkrun, "export", "recipe", arg],
+                          capture_output=True, text=True, timeout=120)
+    if proc.returncode != 0:
+        detail = (proc.stderr.strip() or proc.stdout.strip()).splitlines()
+        hint = f" ({detail[-1].strip()})" if detail else ""
+        sys.exit(f"ERROR: recipe not found: {arg} — not a local file, and sparkrun does not "
+                 f"know it{hint}. Pass a recipe YAML path or a name from `sparkrun list`.")
+    data = yaml.safe_load(proc.stdout)
+    if not isinstance(data, dict):
+        sys.exit(f"ERROR: `sparkrun export recipe {arg}` did not return a recipe")
+    safe = arg.lstrip("@").replace("/", "__")
+    return Recipe(ref=arg, display=arg, results_name=safe, stem=safe, data=data)
 
 
 def find_sparkrun() -> str:
@@ -114,17 +149,17 @@ def find_sparkrun() -> str:
 class Workload:
     """Starts the recipe with sparkrun and guarantees it is stopped on exit."""
 
-    def __init__(self, sparkrun: str, recipe_path: Path, log_path: Path):
+    def __init__(self, sparkrun: str, recipe: Recipe, log_path: Path):
         self.sparkrun = sparkrun
-        self.recipe_path = recipe_path
+        self.recipe = recipe
         self.log_path = log_path
         self.stopped = False
 
     def start(self, timeout: int = 900) -> None:
-        log(f"Launching workload: sparkrun run {self.recipe_path.name} --ensure --no-follow")
+        log(f"Launching workload: sparkrun run {self.recipe.display} --ensure --no-follow")
         with open(self.log_path, "ab") as f:
             proc = subprocess.run(
-                [self.sparkrun, "run", str(self.recipe_path), "--ensure", "--no-follow"],
+                [self.sparkrun, "run", self.recipe.ref, "--ensure", "--no-follow"],
                 stdout=f, stderr=subprocess.STDOUT, timeout=timeout,
             )
         if proc.returncode != 0:
@@ -135,11 +170,11 @@ class Workload:
         if self.stopped:
             return
         self.stopped = True
-        log(f"Stopping workload: sparkrun stop {self.recipe_path.name}")
+        log(f"Stopping workload: sparkrun stop {self.recipe.display}")
         try:
             with open(self.log_path, "ab") as f:
                 subprocess.run(
-                    [self.sparkrun, "stop", str(self.recipe_path)],
+                    [self.sparkrun, "stop", self.recipe.ref],
                     stdout=f, stderr=subprocess.STDOUT, timeout=300,
                 )
         except Exception as exc:  # noqa: BLE001 - best-effort cleanup
@@ -602,12 +637,12 @@ def host_info() -> dict:
 
 def write_report(report_path: Path, ctx: dict) -> None:
     a = ctx["args"]
-    lines = [f"# {ctx['recipe_path'].name} benchmark results", ""]
+    lines = [f"# {ctx['rec'].display} benchmark results", ""]
     lines += [f"Generated UTC: {dt.datetime.now(dt.timezone.utc).isoformat()}", ""]
 
     lines += ["## Run", "", "| Key | Value |", "| --- | --- |"]
     for k, v in [
-        ("Recipe", ctx["recipe_path"]), ("Model", ctx["model_id"]),
+        ("Recipe", ctx["rec"].ref), ("Model", ctx["model_id"]),
         ("Served model name", ctx["served"]), ("Runtime", ctx["recipe"].get("runtime", "")),
         ("Container", ctx["recipe"].get("container", "")), ("Base URL", ctx["base_url"]),
         ("Host", ctx["host"]["uname"]), ("GPU", ctx["host"]["gpu"]),
@@ -695,8 +730,9 @@ def main() -> None:
     args = parse_args()
     t_start = time.monotonic()
 
-    recipe_path = resolve_recipe(args.recipe)
-    recipe = yaml.safe_load(recipe_path.read_text(encoding="utf-8"))
+    sparkrun = find_sparkrun()
+    rec = resolve_recipe(args.recipe, sparkrun)
+    recipe = rec.data
     defaults = recipe.get("defaults") or {}
     model_id = recipe.get("model", "")
     served = defaults.get("served_model_name") or model_id
@@ -706,12 +742,12 @@ def main() -> None:
     base_url = f"http://127.0.0.1:{port}/v1"
 
     ts = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
-    outdir = SCRIPT_DIR / "bench-results" / recipe_path.name / ts
+    outdir = SCRIPT_DIR / "bench-results" / rec.results_name / ts
     outdir.mkdir(parents=True, exist_ok=True)
     report_dir = SCRIPT_DIR / "benchmarks"
     report_dir.mkdir(parents=True, exist_ok=True)
-    report_path = report_dir / f"{recipe_path.stem}.md"
-    log(f"Recipe: {recipe_path.name} | model {served} | port {port} | artifacts {outdir}")
+    report_path = report_dir / f"{rec.stem}.md"
+    log(f"Recipe: {rec.display} | model {served} | port {port} | artifacts {outdir}")
 
     warnings: list[str] = []
     if args.eval_limit > 0 or ":" in args.eval_tasks:
@@ -723,8 +759,7 @@ def main() -> None:
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, lambda s, f: sys.exit(128 + s))
 
-    sparkrun = find_sparkrun()
-    workload = Workload(sparkrun, recipe_path, outdir / "sparkrun.log")
+    workload = Workload(sparkrun, rec, outdir / "sparkrun.log")
     if args.skip_run:
         log("--skip-run: benchmarking an externally-managed instance (won't launch or stop it).")
     else:
@@ -753,7 +788,7 @@ def main() -> None:
                         f"Speed point {p['target_tokens']} tokens failed: {'; '.join(p['errors'])}")
         else:
             ladder_points, reuse_note = load_previous_speed(
-                SCRIPT_DIR / "bench-results" / recipe_path.name, outdir)
+                SCRIPT_DIR / "bench-results" / rec.results_name, outdir)
             if reuse_note:
                 warnings.append(reuse_note)
 
@@ -779,7 +814,7 @@ def main() -> None:
         if not args.skip_run:
             workload.stop()
         write_report(report_path, {
-            "args": args, "recipe_path": recipe_path, "recipe": recipe, "defaults": defaults,
+            "args": args, "rec": rec, "recipe": recipe, "defaults": defaults,
             "model_id": model_id, "served": served, "base_url": base_url,
             "outdir": outdir, "host": host_info(),
             "ladder_points": ladder_points,

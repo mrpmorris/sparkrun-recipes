@@ -2,7 +2,7 @@
 # benchllm.sh — bootstrap for benchllm.py.
 # Ensures uv + a virtualenv with pinned dependencies exist, then runs the benchmark.
 #
-# Usage: ./benchllm.sh --recipe <recipe.yaml> [options]   (see benchllm.py --help)
+# Usage: ./benchllm.sh --recipe <recipe.yaml | sparkrun-recipe-name> [options]   (see benchllm.py --help)
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
