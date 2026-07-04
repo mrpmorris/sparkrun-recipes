@@ -334,14 +334,12 @@ def load_previous_speed(results_root: Path, current_outdir: Path):
 
 
 def prompt_ladder(max_prompt: int, max_model_len, output_tokens: int, steps: int) -> tuple[list[int], list[str]]:
-    """Geometric ladder: 256, then x4 each step (1024, 4096, 16384, ...). Any point that
-    exceeds the limit is skipped (not clamped) - the ladder simply stops there."""
+    """Geometric ladder: 256, then x4 each step (1024, 4096, 16384, ...). A step is
+    included as long as it does not exceed the max length; the ladder simply stops once
+    the next x4 step would go over. No clamping and no reserve for output tokens - the
+    only ceiling is the max length itself."""
     warnings = []
-    limit = max_prompt
-    if max_model_len:
-        model_cap = max_model_len - output_tokens - 512
-        if model_cap < limit:
-            limit = model_cap
+    limit = max_model_len if max_model_len else max_prompt
     sizes = []
     size = 256
     while size <= limit:
@@ -350,7 +348,7 @@ def prompt_ladder(max_prompt: int, max_model_len, output_tokens: int, steps: int
     if size > limit:
         warnings.append(
             f"Prompt sizes beyond {limit} tokens skipped (next x4 step {size} exceeds the "
-            f"usable context; max_model_len={max_model_len}, --max-prompt={max_prompt}).")
+            f"max length; max_model_len={max_model_len}, --max-prompt={max_prompt}).")
     return sizes, warnings
 
 
