@@ -31,8 +31,8 @@ defaults:
   pipeline_parallel: 1
   gpu_memory_utilization: 0.7
   max_model_len: 262144
-  max_num_seqs: 4
-  max_num_batched_tokens: 8192
+  max_num_seqs: 16
+  max_num_batched_tokens: 16384
   quantization: modelopt
   load_format: fastsafetensors
   attention_backend: flashinfer

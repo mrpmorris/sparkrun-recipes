@@ -241,6 +241,9 @@ def stream_request(base_url: str, model: str, prompt: str, max_tokens: int,
         "completion_tokens": completion_tokens,
         "decode_tok_s": (completion_tokens / decode_time) if decode_time and decode_time > 0 else None,
         "prefill_tok_s": (prompt_tokens / ttft) if prompt_tokens and ttft else None,
+        # Time per output token: mean inter-token latency for the tokens after the first.
+        "tpot_s": (decode_time / (completion_tokens - 1))
+                  if (decode_time and completion_tokens and completion_tokens > 1) else None,
     }
 
 
@@ -282,11 +285,13 @@ def run_speed_point(base_url: str, model: str, size: int, concurrency: int,
         prompt_counts = [r["prompt_tokens"] for r in results if r["prompt_tokens"]]
         decode_rates = [r["decode_tok_s"] for r in results if r["decode_tok_s"]]
         prefill_rates = [r["prefill_tok_s"] for r in results if r["prefill_tok_s"]]
+        tpots = [r["tpot_s"] for r in results if r.get("tpot_s")]
         point.update({
             "prompt_tokens_mean": statistics.mean(prompt_counts) if prompt_counts else None,
             "ttft_mean_s": statistics.mean(ttfts) if ttfts else None,
             "ttft_p50_s": percentile(ttfts, 50),
             "ttft_p95_s": percentile(ttfts, 95),
+            "tpot_mean_s": statistics.mean(tpots) if tpots else None,
             "decode_tok_s_mean": statistics.mean(decode_rates) if decode_rates else None,
             "prefill_tok_s_mean": statistics.mean(prefill_rates) if prefill_rates else None,
             "aggregate_tok_s": (total_out / wall) if wall > 0 else None,
@@ -321,16 +326,22 @@ def load_previous_speed(results_root: Path, current_outdir: Path):
 
 
 def prompt_ladder(max_prompt: int, max_model_len, output_tokens: int, steps: int) -> tuple[list[int], list[str]]:
-    """Linear ladder: steps points at limit/steps increments, ending at the limit."""
+    """Geometric ladder: 250, then x4 each step (1000, 4000, 16000, ...) while the
+    point stays below the limit; the final point is exactly the limit."""
     warnings = []
     limit = max_prompt
     if max_model_len:
         model_cap = max_model_len - output_tokens - 512
         if model_cap < limit:
             warnings.append(
-                f"Prompt ladder truncated to {model_cap} tokens by recipe max_model_len={max_model_len}.")
+                f"Prompt ladder capped at {model_cap} tokens by recipe max_model_len={max_model_len}.")
             limit = model_cap
-    sizes = sorted({max(256, round(limit * i / steps)) for i in range(1, steps + 1)})
+    sizes = []
+    size = 250
+    while size < limit:
+        sizes.append(size)
+        size *= 4
+    sizes.append(limit)  # reached/exceeded the limit: use the limit and stop
     return sizes, warnings
 
 
@@ -463,18 +474,20 @@ def fmt(v, digits=3):
 
 def speed_table(points: list[dict]) -> list[str]:
     lines = [
-        "| Prompt tokens | Server prompt tokens | TTFT s | Prefill tok/s | Generation tok/s | Total s |",
-        "| --- | --- | --- | --- | --- | --- |",
+        "| Prompt tokens | Server prompt tokens | TTFT s | TPOT ms | Prefill tok/s | Generation tok/s | Total s |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
     ]
     for p in points:
         if p["ok"]:
+            tpot = p.get("tpot_mean_s")
+            tpot_ms = tpot * 1000 if tpot is not None else None
             lines.append(
                 f"| {p['target_tokens']} | {fmt(p.get('prompt_tokens_mean'), 0)} "
-                f"| {fmt(p.get('ttft_mean_s'))} | {fmt(p.get('prefill_tok_s_mean'), 1)} "
+                f"| {fmt(p.get('ttft_mean_s'))} | {fmt(tpot_ms, 1)} | {fmt(p.get('prefill_tok_s_mean'), 1)} "
                 f"| {fmt(p.get('decode_tok_s_mean'), 2)} | {fmt(p.get('wall_s'), 2)} |"
             )
         else:
-            lines.append(f"| {p['target_tokens']} | | FAILED | | | |")
+            lines.append(f"| {p['target_tokens']} | | FAILED | | | | |")
     return lines
 
 
@@ -518,7 +531,8 @@ def write_report(report_path: Path, ctx: dict) -> None:
     lines += (["_Skipped (--skip-speed)._"] if ctx["ladder_points"] is None
               else speed_table(ctx["ladder_points"]) if ctx["ladder_points"]
               else ["_None._"])
-    lines += ["", "TTFT = time to first token. Prefill tok/s = prompt tokens / TTFT. "
+    lines += ["", "TTFT = time to first token. TPOT = time per output token (mean inter-token "
+              "latency after the first token). Prefill tok/s = prompt tokens / TTFT. "
               "Generation tok/s = output tokens per second after the first token.", ""]
 
     failures = ctx.get("eval_failures") or []
