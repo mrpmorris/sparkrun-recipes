@@ -1,6 +1,6 @@
 # Qwen3.6-27B-AEON-Ultimate-Uncensored-DFlash.yaml benchmark results
 
-Generated UTC: 2026-07-04T14:39:37.613734+00:00
+Generated UTC: 2026-07-04T15:38:21.067399+00:00
 
 ## Run
 
@@ -14,9 +14,9 @@ Generated UTC: 2026-07-04T14:39:37.613734+00:00
 | Base URL | http://127.0.0.1:8000/v1 |
 | Host | Linux 6.17.0-1026-nvidia aarch64 GNU/Linux |
 | GPU | NVIDIA GB10 |
-| Output dir | /home/mrpmorris/sparkrun-recipes/bench-results/Qwen3.6-27B-AEON-Ultimate-Uncensored-DFlash.yaml/20260704-140355 |
+| Output dir | /home/mrpmorris/sparkrun-recipes/bench-results/Qwen3.6-27B-AEON-Ultimate-Uncensored-DFlash.yaml/20260704-151259 |
 | Command | /home/mrpmorris/sparkrun-recipes/benchllm.py --recipe Qwen3.6-27B-AEON-Ultimate-Uncensored-DFlash.yaml |
-| Total duration | 2142 s |
+| Total duration | 1522 s |
 
 ## Recipe settings
 
@@ -43,13 +43,13 @@ Generated UTC: 2026-07-04T14:39:37.613734+00:00
 
 | Prompt tokens | Server prompt tokens | TTFT s | TPOT ms | Prefill tok/s | Generation tok/s | Total s |
 | --- | --- | --- | --- | --- | --- | --- |
-| 250 | 263 | 0.393 | 22.5 | 669.5 | 44.60 | 6.13 |
-| 1000 | 1016 | 0.742 | 25.8 | 1368.7 | 38.89 | 7.33 |
-| 4000 | 4014 | 1.881 | 34.3 | 2133.7 | 29.26 | 10.63 |
-| 16000 | 16013 | 9.586 | 30.1 | 1670.4 | 33.30 | 17.27 |
-| 64000 | 64015 | 44.486 | 48.6 | 1439.0 | 20.67 | 56.87 |
-| 256000 | 256014 | 315.576 | 91.0 | 811.3 | 11.04 | 338.77 |
-| 260000 | 260015 | 324.162 | 94.4 | 802.1 | 10.63 | 348.24 |
+| 250 | 266 | 0.296 | 23.0 | 899.3 | 43.58 | 6.17 |
+| 1000 | 1017 | 0.549 | 22.7 | 1852.0 | 44.17 | 6.34 |
+| 4000 | 4015 | 1.834 | 34.8 | 2189.7 | 28.83 | 10.71 |
+| 16000 | 16017 | 10.116 | 37.5 | 1583.4 | 26.77 | 19.68 |
+| 64000 | 64017 | 47.180 | 40.8 | 1356.9 | 24.61 | 57.58 |
+| 256000 | 256015 | 326.786 | 125.9 | 783.4 | 7.97 | 358.90 |
+| 260000 | 260019 | 337.942 | 102.5 | 769.4 | 9.80 | 364.07 |
 
 TTFT = time to first token. TPOT = time per output token (mean inter-token latency after the first token). Prefill tok/s = prompt tokens / TTFT. Generation tok/s = output tokens per second after the first token.
 
@@ -59,15 +59,19 @@ TTFT = time to first token. TPOT = time per output token (mean inter-token laten
 
 | Task | Description | Metric | Value | Stderr | Samples |
 | --- | --- | --- | --- | --- | --- |
-| mmlu | General knowledge across 57 academic subjects | acc,none | 0.8018 | 0.0166 |  |
-| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,strict-match | 0.0700 | 0.0256 | 100 |
+| mmlu | General knowledge across 57 academic subjects | acc,none | 0.8000 | 0.0167 |  |
+| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,strict-match | 0.0900 | 0.0288 | 100 |
 | gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,flexible-extract | 0.0900 | 0.0288 | 100 |
-| arc_challenge | Hard science exam questions (reasoning) | acc,none | 0.5100 | 0.0502 | 100 |
-| arc_challenge | Hard science exam questions (reasoning) | acc_norm,none | 0.5200 | 0.0502 | 100 |
-| hellaswag | Commonsense sentence completion | acc,none | 0.6000 | 0.0492 | 100 |
-| hellaswag | Commonsense sentence completion | acc_norm,none | 0.7100 | 0.0456 | 100 |
-| humaneval | Coding: write Python functions that pass unit tests | pass@1,create_test | 0.8400 | 0.0368 | 100 |
-| mbpp | Coding: basic Python programming problems, graded by unit tests | pass_at_1,none | 0.5100 | 0.0502 | 100 |
+| arc_challenge | Hard science exam questions (reasoning) | acc,none | 0.5800 | 0.0496 | 100 |
+| arc_challenge | Hard science exam questions (reasoning) | acc_norm,none | 0.5400 | 0.0501 | 100 |
+| hellaswag | Commonsense sentence completion | acc,none | 0.5500 | 0.0500 | 100 |
+| hellaswag | Commonsense sentence completion | acc_norm,none | 0.6600 | 0.0476 | 100 |
+| humaneval | Coding: write Python functions that pass unit tests | pass@1,create_test | 0.8700 | 0.0338 | 100 |
+| mbpp | Coding: basic Python programming problems, graded by unit tests | pass_at_1,none | 0.7300 | 0.0446 | 100 |
+
+## Tool calling (BFCL v4 via EvalScope)
+
+_Skipped (pass --with-bfcl to run)._
 
 ## Warnings
 

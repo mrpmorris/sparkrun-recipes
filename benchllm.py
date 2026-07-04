@@ -74,6 +74,14 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--eval-limit", type=int, default=100,
                    help="Samples per lm-eval task without an explicit task:limit, 0 = full run (default 100)")
     p.add_argument("--eval-concurrency", type=int, default=4, help="Concurrent lm-eval requests (default 4)")
+    p.add_argument("--with-bfcl", action="store_true",
+                   help="Run the BFCL v4 tool-calling benchmark (via EvalScope) against the recipe's "
+                        "tools API. Requires the .benchllm-bfcl-venv that benchllm.sh builds for this flag.")
+    p.add_argument("--bfcl-subsets",
+                   default="simple_python,multiple,parallel,parallel_multiple,live_simple,live_multiple,irrelevance",
+                   help="Comma-separated BFCL v4 subsets to run (default: non-live + live-simple, no API keys needed)")
+    p.add_argument("--bfcl-limit", type=int, default=25,
+                   help="Samples per BFCL subset, 0 = full (default 25)")
     p.add_argument("--ready-timeout", type=int, default=3600, help="Seconds to wait for the model endpoint (default 3600)")
     p.add_argument("--request-timeout", type=int, default=1800, help="Per-request read timeout in seconds (default 1800)")
     p.add_argument("--seed", type=int, default=0, help="Base seed for prompt generation (default 0)")
@@ -366,6 +374,7 @@ TASK_DESCRIPTIONS = {
     "winogrande": "Commonsense pronoun resolution",
     "ifeval": "Instruction following",
     "truthfulqa_mc2": "Resistance to common falsehoods",
+    "bfcl": "Tool/function calling (BFCL v4 via EvalScope)",
 }
 
 
@@ -461,6 +470,94 @@ def run_lm_eval_task(task: str, base_url: str, model: str, limit: int,
 
 
 # ---------------------------------------------------------------------------
+# Tool-calling benchmark (BFCL v4 via EvalScope)
+# ---------------------------------------------------------------------------
+
+BFCL_RUNNER = '''\
+import json, sys
+from evalscope import TaskConfig, run_task
+
+subsets = {subsets!r}
+cfg = TaskConfig(
+    model={model!r},
+    api_url={api_url!r},
+    api_key="EMPTY",
+    eval_type="openai_api",
+    datasets=["bfcl_v4"],
+    dataset_args={{"bfcl_v4": {{
+        "subset_list": subsets,
+        "extra_params": {{"is_fc_model": True}},
+    }}}},
+    eval_batch_size={batch},
+    limit={limit},
+    work_dir={work_dir!r},
+)
+run_task(task_cfg=cfg)
+print("BFCL_DONE")
+'''
+
+
+def _collect_bfcl_scores(node, out: list, overall_names=("bfcl_v4", "averageaccuracy")):
+    """Recursively pull every {name, score, num} node from an EvalScope report."""
+    if isinstance(node, dict):
+        name = node.get("name")
+        score = node.get("score")
+        if isinstance(name, str) and isinstance(score, (int, float)):
+            num = node.get("num") or node.get("count") or node.get("num_samples")
+            out.append({"name": name, "score": score, "n": num,
+                        "overall": name.lower() in overall_names})
+        for v in node.values():
+            _collect_bfcl_scores(v, out, overall_names)
+    elif isinstance(node, list):
+        for v in node:
+            _collect_bfcl_scores(v, out, overall_names)
+
+
+def run_bfcl(base_url: str, model: str, subsets: list, limit: int,
+             outdir: Path) -> tuple[list[dict], str | None]:
+    """Run BFCL v4 tool-calling eval through EvalScope. Returns (score rows, error or None)."""
+    py = os.environ.get("BENCHLLM_BFCL_PYTHON")
+    log_path = outdir / "bfcl.log"
+    if not py or not Path(py).exists():
+        return [], failure("bfcl", log_path,
+                           "BFCL venv not available - run through benchllm.sh with --with-bfcl")
+    work_dir = outdir / "bfcl"
+    work_dir.mkdir(parents=True, exist_ok=True)
+    runner = work_dir / "bfcl_runner.py"
+    runner.write_text(BFCL_RUNNER.format(
+        subsets=subsets, model=model, api_url=base_url,
+        batch=8, limit=(limit or None), work_dir=str(work_dir)))
+
+    log(f"BFCL: {len(subsets)} subset(s) (limit={limit or 'full'}) via EvalScope")
+    with open(log_path, "wb") as f:
+        proc = subprocess.run([py, str(runner)], stdout=f, stderr=subprocess.STDOUT)
+    if proc.returncode != 0:
+        return [], failure("bfcl", log_path, f"EvalScope exit code {proc.returncode}")
+
+    reports = [p for p in work_dir.rglob("*.json") if "reports" in p.parts]
+    if not reports:
+        return [], failure("bfcl", log_path, "EvalScope produced no report JSON")
+    collected: list[dict] = []
+    for rf in sorted(reports, key=lambda p: p.stat().st_mtime):
+        try:
+            _collect_bfcl_scores(json.loads(rf.read_text(encoding="utf-8")), collected)
+        except Exception:  # noqa: BLE001
+            continue
+    if not collected:
+        return [], failure("bfcl", log_path, "could not parse scores from EvalScope report")
+
+    seen, rows = set(), []
+    for c in collected:
+        if c["name"] in seen:
+            continue
+        seen.add(c["name"])
+        rows.append(c)
+    # Overall first, then the rest in the order they appeared.
+    rows.sort(key=lambda r: (not r["overall"]))
+    return rows, None
+
+
+# ---------------------------------------------------------------------------
 # Report
 # ---------------------------------------------------------------------------
 
@@ -551,6 +648,22 @@ def write_report(report_path: Path, ctx: dict) -> None:
                              f"| {fmt(r['value'], 4)} | {fmt(r['stderr'], 4)} | {fmt(r['n'], 0)} |")
             lines.append("")
 
+    lines += ["## Tool calling (BFCL v4 via EvalScope)", ""]
+    if not ctx.get("with_bfcl"):
+        lines += ["_Skipped (pass --with-bfcl to run)._", ""]
+    elif ctx.get("bfcl_rows"):
+        lines += ["Berkeley Function Calling Leaderboard v4 — exercises the recipe's real tool-calling "
+                  "path (OpenAI `tools` API + the recipe's tool_call_parser / auto-tool-choice). "
+                  "Score is accuracy (0-1); OVERALL is BFCL's weighted aggregate.", "",
+                  "| Subset / Category | Score | Samples |",
+                  "| --- | --- | --- |"]
+        for r in ctx["bfcl_rows"]:
+            name = f"**{r['name']}**" if r.get("overall") else r["name"]
+            lines.append(f"| {name} | {fmt(r['score'], 4)} | {fmt(r.get('n'), 0)} |")
+        lines.append("")
+    else:
+        lines += ["_No scores (see Failed benchmarks / bfcl.log)._", ""]
+
     if failures:
         lines += ["### Failed benchmarks", "",
                   "These benchmarks could not complete as the model is currently served — a failure "
@@ -596,7 +709,9 @@ def main() -> None:
     ts = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
     outdir = SCRIPT_DIR / "bench-results" / recipe_path.name / ts
     outdir.mkdir(parents=True, exist_ok=True)
-    report_path = recipe_path.with_name(recipe_path.stem + ".md")
+    report_dir = SCRIPT_DIR / "benchmarks"
+    report_dir.mkdir(parents=True, exist_ok=True)
+    report_path = report_dir / f"{recipe_path.stem}.md"
     log(f"Recipe: {recipe_path.name} | model {served} | port {port} | artifacts {outdir}")
 
     warnings: list[str] = []
@@ -621,6 +736,7 @@ def main() -> None:
     ladder_points = None
     eval_rows = None
     eval_failures: list[dict] = []
+    bfcl_rows = None
     try:
         if not args.skip_speed:
             sizes, ladder_warnings = prompt_ladder(args.max_prompt, max_model_len,
@@ -653,6 +769,13 @@ def main() -> None:
                 if err:
                     eval_failures.append(err)
                     log(f"  FAILED {task}: {err['reason']}")
+
+        if args.with_bfcl:
+            subsets = [s.strip() for s in args.bfcl_subsets.split(",") if s.strip()]
+            bfcl_rows, bfcl_err = run_bfcl(base_url, served, subsets, args.bfcl_limit, outdir)
+            if bfcl_err:
+                eval_failures.append(bfcl_err)
+                log(f"  FAILED bfcl: {bfcl_err['reason']}")
     finally:
         if not args.skip_run:
             workload.stop()
@@ -662,6 +785,7 @@ def main() -> None:
             "outdir": outdir, "host": host_info(),
             "ladder_points": ladder_points,
             "eval_rows": eval_rows, "eval_failures": eval_failures, "warnings": warnings,
+            "bfcl_rows": bfcl_rows, "with_bfcl": args.with_bfcl,
             "duration_s": time.monotonic() - t_start,
         })
 

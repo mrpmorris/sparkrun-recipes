@@ -17,6 +17,15 @@ DEPS=(
   "pyyaml>=6.0"
 )
 
+# BFCL tool-calling benchmark runs in its own venv: EvalScope + bfcl-eval pull heavy
+# deps (torch) and their own transformers/pydantic pins that would clash with lm-eval.
+# Only built when --with-bfcl is passed, so normal runs stay cheap.
+VENV_BFCL="$SCRIPT_DIR/.benchllm-bfcl-venv"
+BFCL_DEPS=(
+  "evalscope==1.2.0"
+  "bfcl-eval==2025.10.27.1"
+)
+
 if ! command -v uv >/dev/null 2>&1; then
   echo "benchllm: uv not found, installing..."
   curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -31,6 +40,25 @@ if [[ ! -f "$MARKER" || "$(cat "$MARKER" 2>/dev/null)" != "$DEPS_HASH" ]]; then
   uv venv --python 3.12 "$VENV"
   uv pip install --python "$VENV/bin/python" "${DEPS[@]}"
   printf '%s' "$DEPS_HASH" > "$MARKER"
+fi
+
+# Build the BFCL venv only when the run asks for it.
+WITH_BFCL=0
+for arg in "$@"; do
+  [[ "$arg" == "--with-bfcl" ]] && WITH_BFCL=1
+done
+
+if [[ "$WITH_BFCL" == "1" ]]; then
+  BFCL_HASH="$(printf '%s\n' "${BFCL_DEPS[@]}" | sha256sum | cut -d' ' -f1)"
+  BFCL_MARKER="$VENV_BFCL/.deps-ok"
+  if [[ ! -f "$BFCL_MARKER" || "$(cat "$BFCL_MARKER" 2>/dev/null)" != "$BFCL_HASH" ]]; then
+    echo "benchllm: building BFCL virtualenv (first --with-bfcl run downloads torch; this is slow)..."
+    rm -rf "$VENV_BFCL"
+    uv venv --python 3.12 "$VENV_BFCL"
+    uv pip install --python "$VENV_BFCL/bin/python" "${BFCL_DEPS[@]}"
+    printf '%s' "$BFCL_HASH" > "$BFCL_MARKER"
+  fi
+  export BENCHLLM_BFCL_PYTHON="$VENV_BFCL/bin/python"
 fi
 
 exec "$VENV/bin/python" "$SCRIPT_DIR/benchllm.py" "$@"
