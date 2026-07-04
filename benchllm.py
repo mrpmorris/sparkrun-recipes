@@ -436,13 +436,16 @@ def failure(task: str, log_path: Path, fallback: str) -> dict:
             "description": TASK_DESCRIPTIONS.get(task, "")}
 
 
-def run_lm_eval_task(task: str, base_url: str, model: str, limit: int,
+def run_lm_eval_task(task: str, base_url: str, model: str, tokenizer: str, limit: int,
                      concurrency: int, outdir: Path) -> tuple[list[dict], str | None]:
     """Run one lm-eval task. Returns (metric rows, error string or None)."""
     eval_dir = outdir / f"lm-eval-{task}"
     eval_dir.mkdir(parents=True, exist_ok=True)
+    # model= is the API alias (served_model_name) and need not exist on the HF
+    # Hub; the tokenizer must be loaded from the recipe's real model repo.
     model_args = (
         f"model={model},"
+        f"tokenizer={tokenizer},"
         f"base_url={base_url}/completions,"
         f"num_concurrent={concurrency},"
         f"max_retries=3,"
@@ -797,8 +800,8 @@ def main() -> None:
             for spec in [t.strip() for t in args.eval_tasks.split(",") if t.strip()]:
                 task, sep, lim = spec.partition(":")
                 limit = int(lim) if sep else args.eval_limit
-                rows, err = run_lm_eval_task(task, base_url, served, limit,
-                                             args.eval_concurrency, outdir)
+                rows, err = run_lm_eval_task(task, base_url, served, model_id or served,
+                                             limit, args.eval_concurrency, outdir)
                 eval_rows += rows
                 if err:
                     eval_failures.append(err)
