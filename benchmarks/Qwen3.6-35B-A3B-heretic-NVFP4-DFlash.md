@@ -1,6 +1,6 @@
 # Qwen3.6-35B-A3B-heretic-NVFP4-DFlash.yaml benchmark results
 
-Generated UTC: 2026-07-04T22:37:16.901924+00:00
+Generated UTC: 2026-07-04T22:58:55.212300+00:00
 
 ## Run
 
@@ -14,9 +14,9 @@ Generated UTC: 2026-07-04T22:37:16.901924+00:00
 | Base URL | http://127.0.0.1:8000/v1 |
 | Host | Linux 6.17.0-1026-nvidia aarch64 GNU/Linux |
 | GPU | NVIDIA GB10 |
-| Output dir | /home/mrpmorris/sparkrun-recipes/bench-results/Qwen3.6-35B-A3B-heretic-NVFP4-DFlash.yaml/20260704-223533 |
+| Output dir | /home/mrpmorris/sparkrun-recipes/bench-results/Qwen3.6-35B-A3B-heretic-NVFP4-DFlash.yaml/20260704-224329 |
 | Command | /home/mrpmorris/sparkrun-recipes/benchllm.py --recipe Qwen3.6-35B-A3B-heretic-NVFP4-DFlash.yaml |
-| Total duration | 103 s |
+| Total duration | 926 s |
 
 ## Recipe settings
 
@@ -42,35 +42,34 @@ Generated UTC: 2026-07-04T22:37:16.901924+00:00
 
 | Prompt tokens | Server prompt tokens | TTFT s | TPOT ms | Prefill tok/s | Generation tok/s | Total s |
 | --- | --- | --- | --- | --- | --- | --- |
-| 256 | 269 | 0.330 | 9.0 | 814.3 | 111.96 | 2.62 |
-| 1024 | 1041 | 0.561 | 7.9 | 1855.8 | 126.80 | 2.58 |
-| 4096 | 4110 | 0.750 | 12.0 | 5477.3 | 83.77 | 3.81 |
-| 16384 | 16401 | 2.767 | 13.3 | 5928.0 | 75.35 | 6.16 |
-| 65536 | 65551 | 13.971 | 23.9 | 4692.0 | 41.98 | 20.07 |
+| 256 | 271 | 0.347 | 8.5 | 780.3 | 117.52 | 2.53 |
+| 1024 | 1041 | 0.400 | 8.7 | 2603.4 | 115.79 | 2.61 |
+| 4096 | 4114 | 0.734 | 10.9 | 5608.3 | 91.77 | 3.52 |
+| 16384 | 16399 | 2.780 | 13.6 | 5898.3 | 73.60 | 6.26 |
+| 65536 | 65552 | 14.042 | 25.3 | 4668.3 | 39.73 | 20.49 |
 | 262144 | | FAILED | | | | |
 
 TTFT = time to first token. TPOT = time per output token (mean inter-token latency after the first token). Prefill tok/s = prompt tokens / TTFT. Generation tok/s = output tokens per second after the first token.
 
 ## Intelligence (lm-eval)
 
-0 task(s) completed, 6 failed.
+6 task(s) completed, 0 failed.
+
+| Task | Description | Metric | Value | Stderr | Samples |
+| --- | --- | --- | --- | --- | --- |
+| mmlu | General knowledge across 57 academic subjects | acc,none | 0.8368 | 0.0151 |  |
+| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,strict-match | 0.0900 | 0.0288 | 100 |
+| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,flexible-extract | 0.1000 | 0.0302 | 100 |
+| arc_challenge | Hard science exam questions (reasoning) | acc,none | 0.5400 | 0.0501 | 100 |
+| arc_challenge | Hard science exam questions (reasoning) | acc_norm,none | 0.5200 | 0.0502 | 100 |
+| hellaswag | Commonsense sentence completion | acc,none | 0.5900 | 0.0494 | 100 |
+| hellaswag | Commonsense sentence completion | acc_norm,none | 0.7500 | 0.0435 | 100 |
+| humaneval | Coding: write Python functions that pass unit tests | pass@1,create_test | 0.7200 | 0.0451 | 100 |
+| mbpp | Coding: basic Python programming problems, graded by unit tests | pass_at_1,none | 0.6000 | 0.0492 | 100 |
 
 ## Tool calling (BFCL v4 via EvalScope)
 
 _Skipped (pass --with-bfcl to run)._
-
-### Failed benchmarks
-
-These benchmarks could not complete as the model is currently served — a failure here is itself a result: the model/config could not perform this evaluation. Multiple-choice tasks (acc / acc_norm) request token log-probabilities from the inference server; generative tasks do not.
-
-| Task | Description | Reason | Log |
-| --- | --- | --- | --- |
-| mmlu | General knowledge across 57 academic subjects | OSError: Qwen/Qwen3.6-35B is not a local folder and is not a valid model identifier listed on 'https://huggingface.co/models' | lm-eval-mmlu.log |
-| gsm8k | Grade-school math word problems (multi-step reasoning) | OSError: Qwen/Qwen3.6-35B is not a local folder and is not a valid model identifier listed on 'https://huggingface.co/models' | lm-eval-gsm8k.log |
-| arc_challenge | Hard science exam questions (reasoning) | OSError: Qwen/Qwen3.6-35B is not a local folder and is not a valid model identifier listed on 'https://huggingface.co/models' | lm-eval-arc_challenge.log |
-| hellaswag | Commonsense sentence completion | OSError: Qwen/Qwen3.6-35B is not a local folder and is not a valid model identifier listed on 'https://huggingface.co/models' | lm-eval-hellaswag.log |
-| humaneval | Coding: write Python functions that pass unit tests | OSError: Qwen/Qwen3.6-35B is not a local folder and is not a valid model identifier listed on 'https://huggingface.co/models' | lm-eval-humaneval.log |
-| mbpp | Coding: basic Python programming problems, graded by unit tests | OSError: Qwen/Qwen3.6-35B is not a local folder and is not a valid model identifier listed on 'https://huggingface.co/models' | lm-eval-mbpp.log |
 
 ## Warnings
 
