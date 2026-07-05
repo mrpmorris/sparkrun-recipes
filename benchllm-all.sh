@@ -11,8 +11,13 @@
 # deleted when it finishes (models already cached at startup are kept) — the
 # whole catalog can be benchmarked even though it wouldn't fit on the SSD.
 #
+# Recipes whose report (benchmarks/<stem>.md) already exists are skipped, so
+# re-running the batch just fills in what's missing. Pass --force to re-run
+# everything regardless.
+#
 # Any extra arguments are passed straight through to benchllm.sh, e.g.:
 #   ./benchllm-all.sh --skip-eval
+#   ./benchllm-all.sh --force --skip-eval
 #   ./benchllm-all.sh --with-bfcl --eval-limit 50
 set -Eeuo pipefail
 

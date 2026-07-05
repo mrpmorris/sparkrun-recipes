@@ -96,6 +96,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--seed", type=int, default=0, help="Base seed for prompt generation (default 0)")
     p.add_argument("--skip-speed", action="store_true", help="Skip the speed benchmark")
     p.add_argument("--skip-eval", action="store_true", help="Skip the intelligence benchmark")
+    p.add_argument("--force", action="store_true",
+                   help="Re-run even if the report already exists (default: skip recipes "
+                        "whose benchmarks/<stem>.md is already present).")
     p.add_argument("--cleanup", action="store_true",
                    help="Delete Hugging Face models downloaded for this run when the script "
                         "exits (models already in the HF cache at startup are kept). Lets a "
@@ -810,7 +813,7 @@ def main() -> None:
 
     # Skip entirely if this recipe's report already exists (don't launch or download).
     existing_report = SCRIPT_DIR / "benchmarks" / f"{rec.stem}.md"
-    if existing_report.exists():
+    if existing_report.exists() and not args.force:
         log(f"Report already exists, skipping: {existing_report} (delete it to re-run).")
         return
 
