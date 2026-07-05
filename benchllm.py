@@ -67,6 +67,28 @@ def log(msg: str) -> None:
     print(f"[{dt.datetime.now().strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
+class StartupError(Exception):
+    """The workload could not be launched or its endpoint never came up."""
+
+
+def write_error_report(report_path: Path, display: str, ref: str,
+                       error: str) -> None:
+    """Record a startup failure as the recipe's report so re-runs skip it (and
+    don't re-download the model) until the file is deleted or --force is used."""
+    ts = dt.datetime.now(dt.timezone.utc).isoformat()
+    report_path.write_text(
+        f"# {display} benchmark results\n\n"
+        f"Generated UTC: {ts}\n\n"
+        f"## Status: FAILED\n\n"
+        f"This recipe could not be benchmarked: the inference server failed to "
+        f"start, so no results were collected.\n\n"
+        f"**Error**\n\n```\n{error}\n```\n\n"
+        f"Recipe: `{ref}`\n\n"
+        f"_This report records the failure so the batch skips this recipe on "
+        f"re-runs. Delete this file or pass --force to retry._\n"
+    )
+
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Benchmark a sparkrun recipe (speed + intelligence).")
     p.add_argument("--recipe", required=True,
@@ -83,9 +105,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--eval-limit", type=int, default=100,
                    help="Samples per lm-eval task without an explicit task:limit, 0 = full run (default 100)")
     p.add_argument("--eval-concurrency", type=int, default=4, help="Concurrent lm-eval requests (default 4)")
-    p.add_argument("--with-bfcl", action="store_true",
-                   help="Run the BFCL v4 tool-calling benchmark (via EvalScope) against the recipe's "
-                        "tools API. Requires the .benchllm-bfcl-venv that benchllm.sh builds for this flag.")
+    p.add_argument("--skip-bfcl", action="store_true",
+                   help="Skip the BFCL v4 tool-calling benchmark (runs by default, via EvalScope, against "
+                        "the recipe's tools API; needs the .benchllm-bfcl-venv that benchllm.sh builds).")
     p.add_argument("--bfcl-subsets",
                    default="simple_python,multiple,parallel,parallel_multiple,live_simple,live_multiple,irrelevance",
                    help="Comma-separated BFCL v4 subsets to run (default: non-live + live-simple, no API keys needed)")
@@ -206,22 +228,83 @@ class Workload:
         self.recipe = recipe
         self.log_path = log_path
         self.stopped = False
+        self.follower = None       # background `sparkrun logs` follower (Popen)
+        self._follow_file = None
 
-    def start(self, timeout: int = 900) -> None:
+    def start(self, timeout: int = 7200) -> None:
+        # `sparkrun run` blocks here while it downloads the model and brings the
+        # container up, so poll the HF cache and report download progress rather
+        # than going silent after "Launching workload".
         log(f"Launching workload: sparkrun run {self.recipe.display} --ensure --no-follow")
+        deadline = time.monotonic() + timeout
+        last_note = 0.0
+        prev_bytes = hf_hub_bytes()
+        prev_t = time.monotonic()
+        GiB = 1024 ** 3
         with open(self.log_path, "ab") as f:
-            proc = subprocess.run(
+            proc = subprocess.Popen(
                 [self.sparkrun, "run", self.recipe.ref, "--ensure", "--no-follow"],
-                stdout=f, stderr=subprocess.STDOUT, timeout=timeout,
+                stdout=f, stderr=subprocess.STDOUT,
             )
+            while proc.poll() is None:
+                if time.monotonic() > deadline:
+                    proc.kill()
+                    raise StartupError(f"sparkrun run exceeded {timeout}s; see {self.log_path}")
+                if time.monotonic() - last_note > 30:
+                    now = time.monotonic()
+                    cur = hf_hub_bytes()
+                    rate = (cur - prev_bytes) / (now - prev_t) if now > prev_t else 0.0
+                    inc = hf_incomplete_count()
+                    if inc and rate > 1e5:
+                        log(f"  ...downloading: {cur / GiB:.1f} GiB cached, "
+                            f"{rate / 1e6:.0f} MB/s, {inc} shard(s) in flight")
+                    else:
+                        log("  ...launching (no active download; pulling image / "
+                            "loading weights)")
+                    prev_bytes, prev_t = cur, now
+                    last_note = now
+                time.sleep(5)
         if proc.returncode != 0:
-            sys.exit(f"ERROR: sparkrun run failed (exit {proc.returncode}); see {self.log_path}")
+            raise StartupError(f"sparkrun run failed (exit {proc.returncode}); see {self.log_path}")
         atexit.register(self.stop)
+
+    def follow_logs(self, dest: Path) -> None:
+        """Stream the running container's serve logs to `dest` in the background
+        (non-blocking). Best-effort: failure to start is logged, never fatal."""
+        try:
+            self._follow_file = open(dest, "ab")
+            self.follower = subprocess.Popen(
+                [self.sparkrun, "logs", self.recipe.ref, "--tail", "200"],
+                stdout=self._follow_file, stderr=subprocess.STDOUT,
+            )
+            log(f"Following serve logs -> {dest}")
+        except Exception as exc:  # noqa: BLE001 - visibility aid, never fatal
+            log(f"WARN: could not start log follower: {exc}")
+            self.follower = None
+
+    def _stop_follower(self) -> None:
+        if self.follower is not None:
+            try:
+                self.follower.terminate()
+                self.follower.wait(timeout=10)
+            except Exception:  # noqa: BLE001
+                try:
+                    self.follower.kill()
+                except Exception:  # noqa: BLE001
+                    pass
+            self.follower = None
+        if self._follow_file is not None:
+            try:
+                self._follow_file.close()
+            except Exception:  # noqa: BLE001
+                pass
+            self._follow_file = None
 
     def stop(self) -> None:
         if self.stopped:
             return
         self.stopped = True
+        self._stop_follower()
         log(f"Stopping workload: sparkrun stop {self.recipe.display}")
         try:
             with open(self.log_path, "ab") as f:
@@ -248,10 +331,99 @@ def probe_server_max_len(base_url: str):
     return None
 
 
+HF_HUB = Path.home() / ".cache" / "huggingface" / "hub"
+
+
+def hf_hub_bytes() -> int:
+    """Total bytes currently in the HF hub cache. Cheap enough to poll while
+    waiting; used to show live download progress before the endpoint is up."""
+    total = 0
+    try:
+        for root, _dirs, files in os.walk(HF_HUB):
+            for f in files:
+                try:
+                    total += os.path.getsize(os.path.join(root, f))
+                except OSError:
+                    pass
+    except OSError:
+        pass
+    return total
+
+
+def hf_incomplete_count() -> int:
+    """Number of *.incomplete blobs = shards HF is actively downloading."""
+    try:
+        return sum(1 for _ in HF_HUB.rglob("*.incomplete"))
+    except OSError:
+        return 0
+
+
+# An engine crash during model load (bad quant checkpoint, OOM, unsupported
+# arch) leaves the container "Up" (PID 1 is `sleep infinity`) with a dead
+# server, so the HTTP endpoint never comes up and wait_for_ready would burn the
+# whole ready-timeout. Detect it by scanning the container serve log instead.
+_ERR_LINE = re.compile(r"([A-Za-z_][\w.]*(?:Error|Exception)):\s*(.+)")
+FATAL_SERVE_PHRASES = (
+    "Engine core initialization failed",
+    "Engine process failed to start",
+    "EngineDeadError",
+    "EngineCore failed",
+    "torch.cuda.OutOfMemoryError",
+    "CUDA out of memory",
+)
+
+
+def read_serve_log(max_bytes: int = 20000) -> str:
+    """Best-effort tail of the running solo container's serve log."""
+    try:
+        names = subprocess.run(
+            ["docker", "ps", "--format", "{{.Names}}"],
+            capture_output=True, text=True, timeout=10,
+        ).stdout.split()
+    except Exception:  # noqa: BLE001
+        return ""
+    solo = next((n for n in names if n.endswith("_solo")), None)
+    if not solo:
+        return ""
+    try:
+        out = subprocess.run(
+            ["docker", "exec", solo, "tail", "-c", str(max_bytes),
+             "/tmp/sparkrun_serve.log"],
+            capture_output=True, text=True, timeout=10,
+        )
+        return out.stdout
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def fatal_serve_error(text: str):
+    """Return a concise error string if the serve log shows a fatal engine
+    crash, else None. Matches exception lines (XxxError: msg) and known
+    engine-death phrases."""
+    if not text:
+        return None
+    hit = None
+    for line in text.splitlines():
+        m = _ERR_LINE.search(line)
+        if m:
+            hit = f"{m.group(1)}: {m.group(2).strip()}"
+    if hit:
+        return hit
+    for phrase in FATAL_SERVE_PHRASES:
+        if phrase in text:
+            return phrase
+    return None
+
+
 def wait_for_ready(base_url: str, timeout: int) -> None:
     log(f"Waiting for {base_url}/models (timeout {timeout}s)...")
     deadline = time.monotonic() + timeout
     last_note = 0.0
+    prev_bytes = hf_hub_bytes()
+    prev_t = time.monotonic()
+    last_crash_check = 0.0
+    crash_strikes = 0            # require 2 consecutive hits to avoid false positives
+    GiB = 1024 ** 3
     while time.monotonic() < deadline:
         try:
             r = requests.get(f"{base_url}/models", timeout=5)
@@ -260,12 +432,34 @@ def wait_for_ready(base_url: str, timeout: int) -> None:
                 return
         except requests.RequestException:
             pass
-        if time.monotonic() - last_note > 60:
-            remaining = int(deadline - time.monotonic())
-            log(f"  ...still waiting ({remaining}s left)")
-            last_note = time.monotonic()
+        # Bail fast on an engine crash rather than waiting out the timeout.
+        if time.monotonic() - last_crash_check > 15:
+            last_crash_check = time.monotonic()
+            err = fatal_serve_error(read_serve_log())
+            if err:
+                crash_strikes += 1
+                if crash_strikes >= 2:
+                    raise StartupError(f"inference server crashed during "
+                                       f"startup: {err}")
+            else:
+                crash_strikes = 0
+        if time.monotonic() - last_note > 30:
+            now = time.monotonic()
+            cur = hf_hub_bytes()
+            rate = (cur - prev_bytes) / (now - prev_t) if now > prev_t else 0.0
+            remaining = int(deadline - now)
+            inc = hf_incomplete_count()
+            if inc and rate > 1e5:
+                log(f"  ...downloading: {cur / GiB:.1f} GiB cached, "
+                    f"{rate / 1e6:.0f} MB/s, {inc} shard(s) in flight "
+                    f"({remaining}s left)")
+            else:
+                log(f"  ...waiting for endpoint (no active download; "
+                    f"{remaining}s left)")
+            prev_bytes, prev_t = cur, now
+            last_note = now
         time.sleep(5)
-    sys.exit("ERROR: model endpoint did not become ready in time")
+    raise StartupError("model endpoint did not become ready in time")
 
 
 def warmup(base_url: str, model: str, timeout: int = 600) -> None:
@@ -466,6 +660,46 @@ def prompt_ladder(max_prompt: int, max_model_len, output_tokens: int, steps: int
 # Intelligence benchmark (lm-eval)
 # ---------------------------------------------------------------------------
 
+# Multiple-choice tasks scored by loglikelihood: lm-eval sends echo=true +
+# logprobs to /v1/completions and reads per-token logprobs of each answer.
+# Some runtimes (sglang) reject that combination; every request then times out
+# and retries forever, wedging the whole run. Tasks not listed here are assumed
+# generative (safe everywhere); a hang there is caught by the eval watchdog.
+LOGLIKELIHOOD_TASKS = {
+    "mmlu", "arc_challenge", "arc_easy", "hellaswag", "winogrande",
+    "piqa", "boolq", "openbookqa", "truthfulqa_mc1", "truthfulqa_mc2", "lambada",
+}
+
+
+def server_generates(base_url: str, model: str, timeout: int = 45) -> bool:
+    """Is the server still able to generate? A wedged scheduler keeps /v1/models
+    responsive while every completion hangs, so probe with a real 1-token request."""
+    try:
+        resp = requests.post(f"{base_url}/completions", json={
+            "model": model, "prompt": "hi", "max_tokens": 1,
+        }, timeout=timeout)
+        return resp.status_code == 200
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def probe_loglikelihood_support(base_url: str, model: str) -> bool:
+    """Can this server score loglikelihood requests (echo + logprobs)? One cheap
+    request; the answer must contain actual token logprobs, not just HTTP 200 —
+    a 200 with empty logprobs would wedge lm-eval exactly like a rejection."""
+    try:
+        resp = requests.post(f"{base_url}/completions", json={
+            "model": model, "prompt": "hi", "max_tokens": 1,
+            "echo": True, "logprobs": 1,
+        }, timeout=60)
+        if resp.status_code != 200:
+            return False
+        lp = (resp.json().get("choices") or [{}])[0].get("logprobs") or {}
+        return bool(lp.get("token_logprobs"))
+    except Exception:  # noqa: BLE001 - treat any probe failure as unsupported
+        return False
+
+
 # Tasks whose evaluation executes model-generated code on this machine.
 # lm-eval refuses to run them without an explicit opt-in flag.
 CODE_TASKS = {"humaneval", "humaneval_plus", "humaneval_64", "mbpp", "mbpp_plus"}
@@ -544,8 +778,30 @@ def run_lm_eval_task(task: str, base_url: str, model: str, tokenizer: str, limit
 
     log(f"lm-eval: {task} (limit={limit or 'full'})")
     log_path = outdir / f"lm-eval-{task}.log"
+    # Watchdog: an eval must keep writing to its log (stall limit) and finish
+    # within a hard cap, else it is killed — one bad task must not wedge a
+    # multi-recipe batch overnight.
+    STALL_S, HARD_CAP_S, POLL_S = 600, 7200, 15
     with open(log_path, "wb") as f:
-        proc = subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, env=env)
+        proc = subprocess.Popen(cmd, stdout=f, stderr=subprocess.STDOUT, env=env)
+        t0 = time.monotonic()
+        last_size, last_change = -1, t0
+        while proc.poll() is None:
+            time.sleep(POLL_S)
+            now = time.monotonic()
+            size = log_path.stat().st_size
+            if size != last_size:
+                last_size, last_change = size, now
+            reason = None
+            if now - last_change > STALL_S:
+                reason = f"no log output for {STALL_S // 60} min"
+            elif now - t0 > HARD_CAP_S:
+                reason = f"exceeded {HARD_CAP_S // 3600}h hard cap"
+            if reason:
+                log(f"lm-eval: {task} watchdog: {reason}; killing")
+                proc.kill()
+                proc.wait(timeout=60)
+                return [], failure(task, log_path, f"killed by watchdog ({reason})")
     if proc.returncode != 0:
         return [], failure(task, log_path, f"exit code {proc.returncode}")
 
@@ -761,8 +1017,8 @@ def write_report(report_path: Path, ctx: dict) -> None:
             lines.append("")
 
     lines += ["## Tool calling (BFCL v4 via EvalScope)", ""]
-    if not ctx.get("with_bfcl"):
-        lines += ["_Skipped (pass --with-bfcl to run)._", ""]
+    if ctx.get("skip_bfcl"):
+        lines += ["_Skipped (--skip-bfcl)._", ""]
     elif ctx.get("bfcl_rows"):
         lines += ["Berkeley Function Calling Leaderboard v4 — exercises the recipe's real tool-calling "
                   "path (OpenAI `tools` API + the recipe's tool_call_parser / auto-tool-choice). "
@@ -854,11 +1110,19 @@ def main() -> None:
             atexit.register(cleanup_downloaded_models, preexisting_models)
 
     workload = Workload(sparkrun, rec, outdir / "sparkrun.log")
-    if args.skip_run:
-        log("--skip-run: benchmarking an externally-managed instance (won't launch or stop it).")
-    else:
-        workload.start()
-    wait_for_ready(base_url, args.ready_timeout)
+    try:
+        if args.skip_run:
+            log("--skip-run: benchmarking an externally-managed instance (won't launch or stop it).")
+        else:
+            workload.start()
+        wait_for_ready(base_url, args.ready_timeout)
+    except StartupError as exc:
+        log(f"Startup failed: {exc}")
+        if not args.skip_run:
+            write_error_report(report_path, rec.display, rec.ref, str(exc))
+            log(f"Wrote failure report: {report_path} (recipe will be skipped on re-runs)")
+        sys.exit(1)
+    workload.follow_logs(outdir / "serve-follow.log")
     warmup(base_url, served)
 
     # Trust the running server over the recipe: registry recipes often omit
@@ -900,17 +1164,49 @@ def main() -> None:
 
         if not args.skip_eval:
             eval_rows = []
-            for spec in [t.strip() for t in args.eval_tasks.split(",") if t.strip()]:
+            specs = [t.strip() for t in args.eval_tasks.split(",") if t.strip()]
+            # Probe once, only if a requested task needs loglikelihood scoring.
+            ll_ok = True
+            if any(s.partition(":")[0] in LOGLIKELIHOOD_TASKS for s in specs):
+                ll_ok = probe_loglikelihood_support(base_url, served)
+                if not ll_ok:
+                    warnings.append(
+                        "Server does not support echo+logprobs on /v1/completions "
+                        "(loglikelihood scoring); multiple-choice tasks skipped.")
+            for spec in specs:
                 task, sep, lim = spec.partition(":")
                 limit = int(lim) if sep else args.eval_limit
+                if task in LOGLIKELIHOOD_TASKS and not ll_ok:
+                    log(f"lm-eval: {task} skipped (server lacks echo+logprobs)")
+                    eval_failures.append({
+                        "task": task, "log": "",
+                        "reason": "skipped: server does not support echo+logprobs "
+                                  "(required for loglikelihood scoring of multiple-choice tasks)",
+                        "description": TASK_DESCRIPTIONS.get(task, "")})
+                    continue
                 rows, err = run_lm_eval_task(task, base_url, served, model_id or served,
                                              limit, args.eval_concurrency, outdir)
                 eval_rows += rows
                 if err:
                     eval_failures.append(err)
                     log(f"  FAILED {task}: {err['reason']}")
+                    # A wedged server would make every remaining task burn its
+                    # watchdog budget too - check it can still generate at all.
+                    if not server_generates(base_url, served):
+                        remaining = specs[specs.index(spec) + 1:]
+                        warnings.append(
+                            f"Server stopped generating after {task}; "
+                            f"remaining eval tasks skipped: {', '.join(remaining) or 'none'}.")
+                        for rspec in remaining:
+                            rtask = rspec.partition(":")[0]
+                            eval_failures.append({
+                                "task": rtask, "log": "",
+                                "reason": "skipped: server stopped generating "
+                                          f"(wedged after {task})",
+                                "description": TASK_DESCRIPTIONS.get(rtask, "")})
+                        break
 
-        if args.with_bfcl:
+        if not args.skip_bfcl:
             subsets = [s.strip() for s in args.bfcl_subsets.split(",") if s.strip()]
             bfcl_rows, bfcl_err = run_bfcl(base_url, served, subsets, args.bfcl_limit, outdir)
             if bfcl_err:
@@ -925,7 +1221,7 @@ def main() -> None:
             "outdir": outdir, "host": host_info(),
             "ladder_points": ladder_points,
             "eval_rows": eval_rows, "eval_failures": eval_failures, "warnings": warnings,
-            "bfcl_rows": bfcl_rows, "with_bfcl": args.with_bfcl,
+            "bfcl_rows": bfcl_rows, "skip_bfcl": args.skip_bfcl,
             "duration_s": time.monotonic() - t_start,
         })
 

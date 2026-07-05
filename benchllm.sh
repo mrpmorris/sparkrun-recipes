@@ -19,7 +19,7 @@ DEPS=(
 
 # BFCL tool-calling benchmark runs in its own venv: EvalScope + bfcl-eval pull heavy
 # deps (torch) and their own transformers/pydantic pins that would clash with lm-eval.
-# Only built when --with-bfcl is passed, so normal runs stay cheap.
+# Built by default; pass --skip-bfcl to skip both this venv and the eval.
 VENV_BFCL="$SCRIPT_DIR/.benchllm-bfcl-venv"
 BFCL_DEPS=(
   "evalscope==1.2.0"
@@ -42,17 +42,17 @@ if [[ ! -f "$MARKER" || "$(cat "$MARKER" 2>/dev/null)" != "$DEPS_HASH" ]]; then
   printf '%s' "$DEPS_HASH" > "$MARKER"
 fi
 
-# Build the BFCL venv only when the run asks for it.
-WITH_BFCL=0
+# Build the BFCL venv by default; skip only when the run opts out.
+SKIP_BFCL=0
 for arg in "$@"; do
-  [[ "$arg" == "--with-bfcl" ]] && WITH_BFCL=1
+  [[ "$arg" == "--skip-bfcl" ]] && SKIP_BFCL=1
 done
 
-if [[ "$WITH_BFCL" == "1" ]]; then
+if [[ "$SKIP_BFCL" == "0" ]]; then
   BFCL_HASH="$(printf '%s\n' "${BFCL_DEPS[@]}" | sha256sum | cut -d' ' -f1)"
   BFCL_MARKER="$VENV_BFCL/.deps-ok"
   if [[ ! -f "$BFCL_MARKER" || "$(cat "$BFCL_MARKER" 2>/dev/null)" != "$BFCL_HASH" ]]; then
-    echo "benchllm: building BFCL virtualenv (first --with-bfcl run downloads torch; this is slow)..."
+    echo "benchllm: building BFCL virtualenv (first run downloads torch; slow — pass --skip-bfcl to skip)..."
     rm -rf "$VENV_BFCL"
     uv venv --python 3.12 "$VENV_BFCL"
     uv pip install --python "$VENV_BFCL/bin/python" "${BFCL_DEPS[@]}"

@@ -47,6 +47,19 @@ else
   echo "benchllm-all: WARNING — sparkrun not on PATH; skipping built-in recipes." >&2
 fi
 
+# Drop transitional recipes: on this box they wedge sglang's scheduler on the
+# lm-eval step (models endpoint stays up, generation dies). Skip anything whose
+# name contains @sparkrun-transitional.
+filtered=()
+for r in "${recipes[@]}"; do
+  if [[ "$r" == *@sparkrun-transitional* ]]; then
+    echo "benchllm-all: skipping transitional recipe: $r" >&2
+  else
+    filtered+=("$r")
+  fi
+done
+recipes=("${filtered[@]+"${filtered[@]}"}")
+
 if [[ ${#recipes[@]} -eq 0 ]]; then
   echo "benchllm-all: no recipes found." >&2
   exit 1
