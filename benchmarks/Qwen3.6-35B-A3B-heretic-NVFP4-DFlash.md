@@ -1,6 +1,6 @@
 # Qwen3.6-35B-A3B-heretic-NVFP4-DFlash.yaml benchmark results
 
-Generated UTC: 2026-07-04T23:19:25.523514+00:00
+Generated UTC: 2026-07-05T01:44:46.575529+00:00
 
 ## Run
 
@@ -14,9 +14,9 @@ Generated UTC: 2026-07-04T23:19:25.523514+00:00
 | Base URL | http://127.0.0.1:8000/v1 |
 | Host | Linux 6.17.0-1026-nvidia aarch64 GNU/Linux |
 | GPU | NVIDIA GB10 |
-| Output dir | /home/mrpmorris/sparkrun-recipes/bench-results/Qwen3.6-35B-A3B-heretic-NVFP4-DFlash.yaml/20260704-230921 |
-| Command | /home/mrpmorris/sparkrun-recipes/benchllm.py --recipe Qwen3.6-35B-A3B-heretic-NVFP4-DFlash.yaml --skip-eval |
-| Total duration | 604 s |
+| Output dir | /home/mrpmorris/sparkrun-recipes/bench-results/Qwen3.6-35B-A3B-heretic-NVFP4-DFlash.yaml/20260705-012731 |
+| Command | /home/mrpmorris/sparkrun-recipes/benchllm.py --recipe /home/mrpmorris/sparkrun-recipes/Qwen3.6-35B-A3B-heretic-NVFP4-DFlash.yaml --cleanup |
+| Total duration | 1035 s |
 
 ## Recipe settings
 
@@ -42,18 +42,30 @@ Generated UTC: 2026-07-04T23:19:25.523514+00:00
 
 | Prompt tokens | Server prompt tokens | TTFT s | TPOT ms | Prefill tok/s | Generation tok/s | Total s |
 | --- | --- | --- | --- | --- | --- | --- |
-| 256 | 272 | 0.172 | 13.0 | 1584.0 | 77.47 | 3.48 |
-| 1024 | 1039 | 0.241 | 8.7 | 4302.8 | 114.93 | 2.47 |
-| 4096 | 4111 | 0.731 | 10.3 | 5625.3 | 97.03 | 3.37 |
-| 16384 | 16398 | 2.760 | 12.7 | 5942.2 | 79.01 | 6.00 |
-| 65536 | 65549 | 13.998 | 25.9 | 4682.7 | 38.77 | 20.60 |
-| 259267 | 259286 | 113.589 | 68.4 | 2282.7 | 14.68 | 131.03 |
+| 256 | 274 | 0.329 | 8.6 | 833.5 | 117.03 | 2.52 |
+| 1024 | 1041 | 0.387 | 10.9 | 2692.5 | 91.76 | 3.18 |
+| 4096 | 4113 | 0.728 | 11.6 | 5652.6 | 86.18 | 3.70 |
+| 16384 | 16399 | 2.744 | 12.3 | 5975.6 | 81.32 | 5.89 |
+| 65536 | 65554 | 13.994 | 24.3 | 4684.4 | 41.29 | 20.19 |
+| 259267 | 259282 | 113.376 | 87.8 | 2286.9 | 11.44 | 135.76 |
 
 TTFT = time to first token. TPOT = time per output token (mean inter-token latency after the first token). Prefill tok/s = prompt tokens / TTFT. Generation tok/s = output tokens per second after the first token.
 
 ## Intelligence (lm-eval)
 
-_Skipped (--skip-eval)._
+6 task(s) completed, 0 failed.
+
+| Task | Description | Metric | Value | Stderr | Samples |
+| --- | --- | --- | --- | --- | --- |
+| mmlu | General knowledge across 57 academic subjects | acc,none | 0.8386 | 0.0152 |  |
+| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,strict-match | 0.0900 | 0.0288 | 100 |
+| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,flexible-extract | 0.1000 | 0.0302 | 100 |
+| arc_challenge | Hard science exam questions (reasoning) | acc,none | 0.5200 | 0.0502 | 100 |
+| arc_challenge | Hard science exam questions (reasoning) | acc_norm,none | 0.4900 | 0.0502 | 100 |
+| hellaswag | Commonsense sentence completion | acc,none | 0.5900 | 0.0494 | 100 |
+| hellaswag | Commonsense sentence completion | acc_norm,none | 0.7700 | 0.0423 | 100 |
+| humaneval | Coding: write Python functions that pass unit tests | pass@1,create_test | 0.7400 | 0.0441 | 100 |
+| mbpp | Coding: basic Python programming problems, graded by unit tests | pass_at_1,none | 0.6200 | 0.0488 | 100 |
 
 ## Tool calling (BFCL v4 via EvalScope)
 

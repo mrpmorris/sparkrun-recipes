@@ -1,6 +1,6 @@
 # Qwen3.6-35B-A3B-FP8.yaml benchmark results
 
-Generated UTC: 2026-07-04T16:52:53.408096+00:00
+Generated UTC: 2026-07-05T01:27:29.594099+00:00
 
 ## Run
 
@@ -14,9 +14,9 @@ Generated UTC: 2026-07-04T16:52:53.408096+00:00
 | Base URL | http://127.0.0.1:8000/v1 |
 | Host | Linux 6.17.0-1026-nvidia aarch64 GNU/Linux |
 | GPU | NVIDIA GB10 |
-| Output dir | /home/mrpmorris/sparkrun-recipes/bench-results/Qwen3.6-35B-A3B-FP8.yaml/20260704-164150 |
-| Command | /home/mrpmorris/sparkrun-recipes/benchllm.py --recipe Qwen3.6-35B-A3B-FP8.yaml |
-| Total duration | 663 s |
+| Output dir | /home/mrpmorris/sparkrun-recipes/bench-results/Qwen3.6-35B-A3B-FP8.yaml/20260705-010942 |
+| Command | /home/mrpmorris/sparkrun-recipes/benchllm.py --recipe /home/mrpmorris/sparkrun-recipes/Qwen3.6-35B-A3B-FP8.yaml --cleanup |
+| Total duration | 1067 s |
 
 ## Recipe settings
 
@@ -42,41 +42,36 @@ Generated UTC: 2026-07-04T16:52:53.408096+00:00
 
 | Prompt tokens | Server prompt tokens | TTFT s | TPOT ms | Prefill tok/s | Generation tok/s | Total s |
 | --- | --- | --- | --- | --- | --- | --- |
-| 256 | 271 | 0.279 | 15.4 | 973.0 | 65.13 | 4.21 |
-| 1024 | 1038 | 0.327 | 14.4 | 3175.1 | 69.60 | 4.01 |
-| 4096 | 4115 | 1.266 | 17.9 | 3250.0 | 56.17 | 5.82 |
-| 16384 | 16400 | 3.159 | 15.8 | 5191.7 | 63.36 | 7.20 |
-| 65536 | 65554 | 16.888 | 16.3 | 3881.6 | 61.67 | 21.04 |
-| 262144 | | FAILED | | | | |
+| 256 | 272 | 0.245 | 13.1 | 1109.2 | 76.82 | 3.58 |
+| 1024 | 1037 | 0.378 | 15.1 | 2741.8 | 66.58 | 4.22 |
+| 4096 | 4113 | 1.142 | 15.3 | 3600.7 | 65.71 | 5.04 |
+| 16384 | 16401 | 3.378 | 17.4 | 4855.9 | 57.57 | 7.82 |
+| 65536 | 65552 | 16.907 | 20.0 | 3877.2 | 50.13 | 22.01 |
+| 259267 | 259284 | 145.692 | 22.6 | 1779.7 | 44.47 | 151.45 |
 
 TTFT = time to first token. TPOT = time per output token (mean inter-token latency after the first token). Prefill tok/s = prompt tokens / TTFT. Generation tok/s = output tokens per second after the first token.
 
 ## Intelligence (lm-eval)
 
-1 task(s) completed, 5 failed.
+6 task(s) completed, 0 failed.
 
 | Task | Description | Metric | Value | Stderr | Samples |
 | --- | --- | --- | --- | --- | --- |
-| mmlu | General knowledge across 57 academic subjects | acc,none | 0.7123 | 0.0186 |  |
+| mmlu | General knowledge across 57 academic subjects | acc,none | 0.7333 | 0.0183 |  |
+| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,strict-match | 0.3600 | 0.0482 | 100 |
+| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,flexible-extract | 0.3700 | 0.0485 | 100 |
+| arc_challenge | Hard science exam questions (reasoning) | acc,none | 0.2700 | 0.0446 | 100 |
+| arc_challenge | Hard science exam questions (reasoning) | acc_norm,none | 0.2800 | 0.0451 | 100 |
+| hellaswag | Commonsense sentence completion | acc,none | 0.4200 | 0.0496 | 100 |
+| hellaswag | Commonsense sentence completion | acc_norm,none | 0.5400 | 0.0501 | 100 |
+| humaneval | Coding: write Python functions that pass unit tests | pass@1,create_test | 0.7300 | 0.0446 | 100 |
+| mbpp | Coding: basic Python programming problems, graded by unit tests | pass_at_1,none | 0.7500 | 0.0435 | 100 |
 
 ## Tool calling (BFCL v4 via EvalScope)
 
 _Skipped (pass --with-bfcl to run)._
 
-### Failed benchmarks
-
-These benchmarks could not complete as the model is currently served — a failure here is itself a result: the model/config could not perform this evaluation. Multiple-choice tasks (acc / acc_norm) request token log-probabilities from the inference server; generative tasks do not.
-
-| Task | Description | Reason | Log |
-| --- | --- | --- | --- |
-| gsm8k | Grade-school math word problems (multi-step reasoning) | aiohttp.client_exceptions.ClientConnectorError: Cannot connect to host 127.0.0.1:8000 ssl:default [Connect call failed ('127.0.0.1', 8000)] | lm-eval-gsm8k.log |
-| arc_challenge | Hard science exam questions (reasoning) | aiohttp.client_exceptions.ClientConnectorError: Cannot connect to host 127.0.0.1:8000 ssl:default [Connect call failed ('127.0.0.1', 8000)] | lm-eval-arc_challenge.log |
-| hellaswag | Commonsense sentence completion | aiohttp.client_exceptions.ClientConnectorError: Cannot connect to host 127.0.0.1:8000 ssl:default [Connect call failed ('127.0.0.1', 8000)] | lm-eval-hellaswag.log |
-| humaneval | Coding: write Python functions that pass unit tests | aiohttp.client_exceptions.ClientConnectorError: Cannot connect to host 127.0.0.1:8000 ssl:default [Connect call failed ('127.0.0.1', 8000)] | lm-eval-humaneval.log |
-| mbpp | Coding: basic Python programming problems, graded by unit tests | aiohttp.client_exceptions.ClientConnectorError: Cannot connect to host 127.0.0.1:8000 ssl:default [Connect call failed ('127.0.0.1', 8000)] | lm-eval-mbpp.log |
-
 ## Warnings
 
 - lm-eval ran with sample limits (default 100, per task/subtask; tasks: mmlu:10,gsm8k,arc_challenge,hellaswag,humaneval,mbpp); scores are comparative samples, not full-benchmark numbers.
-- Prompt sizes beyond 262144 tokens skipped (next x4 step 1048576 exceeds the max length; max_model_len=262144, --max-prompt=260000).
-- Speed point 262144 tokens failed: HTTPError: 400 Client Error: Bad Request for url: http://127.0.0.1:8000/v1/chat/completions
+- Top prompt rung capped at 259267 tokens (max length 262144 minus 256 output tokens and 2621 tokenizer-skew margin).

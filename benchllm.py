@@ -96,6 +96,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--seed", type=int, default=0, help="Base seed for prompt generation (default 0)")
     p.add_argument("--skip-speed", action="store_true", help="Skip the speed benchmark")
     p.add_argument("--skip-eval", action="store_true", help="Skip the intelligence benchmark")
+    p.add_argument("--cleanup", action="store_true",
+                   help="Delete Hugging Face models downloaded for this run when the script "
+                        "exits (models already in the HF cache at startup are kept). Lets a "
+                        "batch run benchmark more models than the SSD can hold at once.")
     p.add_argument("--skip-run", action="store_true",
                    help="Don't launch or stop the model; benchmark an instance you started yourself "
                         "(e.g. with `sparkrun run <recipe> -o speculative_config=''`)")
@@ -143,6 +147,51 @@ def find_sparkrun() -> str:
 
 
 # ---------------------------------------------------------------------------
+# --cleanup: delete HF models that this run had to download
+# ---------------------------------------------------------------------------
+
+HF_HUB = Path(os.environ.get("HF_HOME", str(Path.home() / ".cache" / "huggingface"))) / "hub"
+
+
+def hf_cached_models() -> set:
+    """Names of the models-- snapshot dirs currently in the HF hub cache."""
+    if not HF_HUB.is_dir():
+        return set()
+    return {d.name for d in HF_HUB.iterdir() if d.is_dir() and d.name.startswith("models--")}
+
+
+def _dir_size_bytes(path: Path) -> int:
+    total = 0
+    for root, _dirs, files in os.walk(path):
+        for name in files:
+            try:
+                total += os.lstat(os.path.join(root, name)).st_size
+            except OSError:
+                pass
+    return total
+
+
+def cleanup_downloaded_models(preexisting: set) -> None:
+    """atexit hook: remove every HF model cached after startup (i.e. downloaded
+    by this run), keeping whatever was already on disk. Datasets are untouched."""
+    new = sorted(hf_cached_models() - preexisting)
+    if not new:
+        log("--cleanup: no newly downloaded HF models to remove.")
+        return
+    freed = 0
+    for name in new:
+        path = HF_HUB / name
+        size = _dir_size_bytes(path)
+        log(f"--cleanup: removing {name} ({size / 1e9:.1f} GB)")
+        shutil.rmtree(path, ignore_errors=True)
+        lock = HF_HUB / ".locks" / name
+        if lock.is_dir():
+            shutil.rmtree(lock, ignore_errors=True)
+        freed += size
+    log(f"--cleanup: freed {freed / 1e9:.1f} GB ({len(new)} model(s) removed).")
+
+
+# ---------------------------------------------------------------------------
 # Workload lifecycle
 # ---------------------------------------------------------------------------
 
@@ -179,6 +228,21 @@ class Workload:
                 )
         except Exception as exc:  # noqa: BLE001 - best-effort cleanup
             log(f"WARN: sparkrun stop failed: {exc}")
+
+
+def probe_server_max_len(base_url: str):
+    """Ask the server for its context window. vLLM reports max_model_len per model
+    in /v1/models; other runtimes may not, in which case this returns None."""
+    try:
+        resp = requests.get(f"{base_url}/models", timeout=30)
+        resp.raise_for_status()
+        for entry in resp.json().get("data", []):
+            v = entry.get("max_model_len")
+            if v:
+                return int(v)
+    except Exception:  # noqa: BLE001 - probe is best-effort
+        return None
+    return None
 
 
 def wait_for_ready(base_url: str, timeout: int) -> None:
@@ -743,6 +807,13 @@ def main() -> None:
 
     sparkrun = find_sparkrun()
     rec = resolve_recipe(args.recipe, sparkrun)
+
+    # Skip entirely if this recipe's report already exists (don't launch or download).
+    existing_report = SCRIPT_DIR / "benchmarks" / f"{rec.stem}.md"
+    if existing_report.exists():
+        log(f"Report already exists, skipping: {existing_report} (delete it to re-run).")
+        return
+
     recipe = rec.data
     defaults = recipe.get("defaults") or {}
     model_id = recipe.get("model", "")
@@ -770,6 +841,15 @@ def main() -> None:
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, lambda s, f: sys.exit(128 + s))
 
+    if args.cleanup:
+        if args.skip_run:
+            log("--cleanup: ignored with --skip-run (won't delete weights an external instance may be using).")
+        else:
+            preexisting_models = hf_cached_models()
+            log(f"--cleanup: {len(preexisting_models)} HF model(s) already cached; "
+                "models downloaded for this run will be deleted at exit.")
+            atexit.register(cleanup_downloaded_models, preexisting_models)
+
     workload = Workload(sparkrun, rec, outdir / "sparkrun.log")
     if args.skip_run:
         log("--skip-run: benchmarking an externally-managed instance (won't launch or stop it).")
@@ -777,6 +857,18 @@ def main() -> None:
         workload.start()
     wait_for_ready(base_url, args.ready_timeout)
     warmup(base_url, served)
+
+    # Trust the running server over the recipe: registry recipes often omit
+    # max_model_len, and the ladder must not exceed the real context window.
+    server_len = probe_server_max_len(base_url)
+    if server_len:
+        if max_model_len is None:
+            log(f"Server reports max_model_len={server_len} (recipe does not set one).")
+            max_model_len = server_len
+        elif server_len < max_model_len:
+            warnings.append(f"Recipe max_model_len={max_model_len} but the server reports "
+                            f"{server_len}; using the server value.")
+            max_model_len = server_len
 
     ladder_points = None
     eval_rows = None

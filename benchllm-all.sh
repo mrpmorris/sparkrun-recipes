@@ -7,6 +7,10 @@
 #      or is not a number (e.g. `-`). Recipes needing TP > 1 are skipped
 #      because this box is a single GB10 (tensor parallel > 1 won't fit).
 #
+# Every recipe is run with --cleanup so HF models downloaded for a run are
+# deleted when it finishes (models already cached at startup are kept) — the
+# whole catalog can be benchmarked even though it wouldn't fit on the SSD.
+#
 # Any extra arguments are passed straight through to benchllm.sh, e.g.:
 #   ./benchllm-all.sh --skip-eval
 #   ./benchllm-all.sh --with-bfcl --eval-limit 50
@@ -53,7 +57,7 @@ for recipe in "${recipes[@]}"; do
   echo "============================================================"
   echo "benchllm-all: >>> $recipe"
   echo "============================================================"
-  if "$BENCHLLM" --recipe "$recipe" "$@"; then
+  if "$BENCHLLM" --recipe "$recipe" --cleanup "$@"; then
     ok_list+=("$recipe")
   else
     rc=$?

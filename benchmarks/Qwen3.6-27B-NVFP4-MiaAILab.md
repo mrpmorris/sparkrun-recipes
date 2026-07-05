@@ -1,6 +1,6 @@
 # Qwen3.6-27B-NVFP4-MiaAILab.yaml benchmark results
 
-Generated UTC: 2026-07-04T18:19:06.424365+00:00
+Generated UTC: 2026-07-05T01:09:40.551773+00:00
 
 ## Run
 
@@ -14,9 +14,9 @@ Generated UTC: 2026-07-04T18:19:06.424365+00:00
 | Base URL | http://127.0.0.1:8000/v1 |
 | Host | Linux 6.17.0-1026-nvidia aarch64 GNU/Linux |
 | GPU | NVIDIA GB10 |
-| Output dir | /home/mrpmorris/sparkrun-recipes/bench-results/Qwen3.6-27B-NVFP4-MiaAILab.yaml/20260704-175255 |
-| Command | /home/mrpmorris/sparkrun-recipes/benchllm.py --recipe Qwen3.6-27B-NVFP4-MiaAILab.yaml |
-| Total duration | 1571 s |
+| Output dir | /home/mrpmorris/sparkrun-recipes/bench-results/Qwen3.6-27B-NVFP4-MiaAILab.yaml/20260705-003514 |
+| Command | /home/mrpmorris/sparkrun-recipes/benchllm.py --recipe /home/mrpmorris/sparkrun-recipes/Qwen3.6-27B-NVFP4-MiaAILab.yaml --cleanup |
+| Total duration | 2066 s |
 
 ## Recipe settings
 
@@ -44,29 +44,27 @@ Generated UTC: 2026-07-04T18:19:06.424365+00:00
 
 | Prompt tokens | Server prompt tokens | TTFT s | TPOT ms | Prefill tok/s | Generation tok/s | Total s |
 | --- | --- | --- | --- | --- | --- | --- |
-| 256 | 271 | 0.843 | 27.9 | 321.5 | 35.96 | 7.96 |
-| 1024 | 1038 | 1.199 | 32.2 | 865.6 | 31.15 | 9.42 |
-| 4096 | 4112 | 4.293 | 33.0 | 957.9 | 30.41 | 12.71 |
-| 16384 | 16397 | 15.453 | 36.8 | 1061.1 | 27.26 | 24.84 |
-| 65536 | 65553 | 72.028 | 37.6 | 910.1 | 26.72 | 81.61 |
-| 262144 | | FAILED | | | | |
+| 256 | 271 | 0.957 | 28.3 | 283.1 | 35.45 | 8.18 |
+| 1024 | 1040 | 1.296 | 32.7 | 802.6 | 30.71 | 9.63 |
+| 4096 | 4111 | 4.297 | 32.1 | 956.6 | 31.30 | 12.48 |
+| 16384 | 16399 | 15.772 | 36.2 | 1039.7 | 27.71 | 25.01 |
+| 65536 | 65552 | 71.727 | 33.8 | 913.9 | 29.73 | 80.34 |
+| 259267 | 259282 | 466.066 | 44.3 | 556.3 | 22.66 | 477.36 |
 
 TTFT = time to first token. TPOT = time per output token (mean inter-token latency after the first token). Prefill tok/s = prompt tokens / TTFT. Generation tok/s = output tokens per second after the first token.
 
 ## Intelligence (lm-eval)
 
-5 task(s) completed, 1 failed.
+4 task(s) completed, 2 failed.
 
 | Task | Description | Metric | Value | Stderr | Samples |
 | --- | --- | --- | --- | --- | --- |
 | gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,strict-match | 0.6500 | 0.0479 | 100 |
-| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,flexible-extract | 0.6900 | 0.0465 | 100 |
-| arc_challenge | Hard science exam questions (reasoning) | acc,none | 0.2900 | 0.0456 | 100 |
-| arc_challenge | Hard science exam questions (reasoning) | acc_norm,none | 0.2400 | 0.0429 | 100 |
-| hellaswag | Commonsense sentence completion | acc,none | 0.3700 | 0.0485 | 100 |
-| hellaswag | Commonsense sentence completion | acc_norm,none | 0.4200 | 0.0496 | 100 |
-| humaneval | Coding: write Python functions that pass unit tests | pass@1,create_test | 0.8100 | 0.0394 | 100 |
-| mbpp | Coding: basic Python programming problems, graded by unit tests | pass_at_1,none | 0.2800 | 0.0451 | 100 |
+| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,flexible-extract | 0.6700 | 0.0473 | 100 |
+| hellaswag | Commonsense sentence completion | acc,none | 0.3100 | 0.0465 | 100 |
+| hellaswag | Commonsense sentence completion | acc_norm,none | 0.3900 | 0.0490 | 100 |
+| humaneval | Coding: write Python functions that pass unit tests | pass@1,create_test | 0.8400 | 0.0368 | 100 |
+| mbpp | Coding: basic Python programming problems, graded by unit tests | pass_at_1,none | 0.3100 | 0.0465 | 100 |
 
 ## Tool calling (BFCL v4 via EvalScope)
 
@@ -79,9 +77,9 @@ These benchmarks could not complete as the model is currently served — a failu
 | Task | Description | Reason | Log |
 | --- | --- | --- | --- |
 | mmlu | General knowledge across 57 academic subjects | HTTP 400 from inference server: Out of range float values are not JSON compliant: nan | lm-eval-mmlu.log |
+| arc_challenge | Hard science exam questions (reasoning) | HTTP 400 from inference server: Out of range float values are not JSON compliant: nan | lm-eval-arc_challenge.log |
 
 ## Warnings
 
 - lm-eval ran with sample limits (default 100, per task/subtask; tasks: mmlu:10,gsm8k,arc_challenge,hellaswag,humaneval,mbpp); scores are comparative samples, not full-benchmark numbers.
-- Prompt sizes beyond 262144 tokens skipped (next x4 step 1048576 exceeds the max length; max_model_len=262144, --max-prompt=260000).
-- Speed point 262144 tokens failed: HTTPError: 400 Client Error: Bad Request for url: http://127.0.0.1:8000/v1/chat/completions
+- Top prompt rung capped at 259267 tokens (max length 262144 minus 256 output tokens and 2621 tokenizer-skew margin).
