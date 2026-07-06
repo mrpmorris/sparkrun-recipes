@@ -745,50 +745,6 @@ def failure(task: str, log_path: Path, fallback: str) -> dict:
             "description": TASK_DESCRIPTIONS.get(task, "")}
 
 
-def stream_process(cmd, log_path, env=None, stall_s=None, hard_cap_s=None, poll_s=15):
-    """Run cmd, tee its combined stdout/stderr to BOTH log_path and this
-    process's stdout, so long evals aren't a silent black box. Optional
-    watchdog: kill on `stall_s` seconds without any output, or `hard_cap_s`
-    total. Returns (returncode, watchdog_reason); reason is None on clean exit
-    (returncode is None when the watchdog killed it)."""
-    import threading
-    state = {"last": time.monotonic()}
-    with open(log_path, "wb") as f:
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
-                                stderr=subprocess.STDOUT, env=env, bufsize=0)
-        sink = sys.stdout.buffer
-
-        def pump():
-            for chunk in iter(lambda: proc.stdout.read(4096), b""):
-                f.write(chunk)
-                f.flush()
-                state["last"] = time.monotonic()
-                try:
-                    sink.write(chunk)
-                    sink.flush()
-                except Exception:  # noqa: BLE001 - console tee is best-effort
-                    pass
-
-        th = threading.Thread(target=pump, daemon=True)
-        th.start()
-        t0 = time.monotonic()
-        while proc.poll() is None:
-            time.sleep(poll_s)
-            now = time.monotonic()
-            reason = None
-            if stall_s and now - state["last"] > stall_s:
-                reason = f"no output for {stall_s // 60} min"
-            elif hard_cap_s and now - t0 > hard_cap_s:
-                reason = f"exceeded {hard_cap_s // 3600}h hard cap"
-            if reason:
-                proc.kill()
-                proc.wait(timeout=60)
-                th.join(timeout=5)
-                return None, reason
-        th.join(timeout=5)
-    return proc.returncode, None
-
-
 def run_lm_eval_task(task: str, base_url: str, model: str, tokenizer: str, limit: int,
                      concurrency: int, outdir: Path) -> tuple[list[dict], str | None]:
     """Run one lm-eval task. Returns (metric rows, error string or None)."""
@@ -826,13 +782,28 @@ def run_lm_eval_task(task: str, base_url: str, model: str, tokenizer: str, limit
     # within a hard cap, else it is killed — one bad task must not wedge a
     # multi-recipe batch overnight.
     STALL_S, HARD_CAP_S, POLL_S = 600, 7200, 15
-    rc, wd_reason = stream_process(cmd, log_path, env=env,
-                                   stall_s=STALL_S, hard_cap_s=HARD_CAP_S, poll_s=POLL_S)
-    if wd_reason:
-        log(f"lm-eval: {task} watchdog: {wd_reason}; killed")
-        return [], failure(task, log_path, f"killed by watchdog ({wd_reason})")
-    if rc != 0:
-        return [], failure(task, log_path, f"exit code {rc}")
+    with open(log_path, "wb") as f:
+        proc = subprocess.Popen(cmd, stdout=f, stderr=subprocess.STDOUT, env=env)
+        t0 = time.monotonic()
+        last_size, last_change = -1, t0
+        while proc.poll() is None:
+            time.sleep(POLL_S)
+            now = time.monotonic()
+            size = log_path.stat().st_size
+            if size != last_size:
+                last_size, last_change = size, now
+            reason = None
+            if now - last_change > STALL_S:
+                reason = f"no log output for {STALL_S // 60} min"
+            elif now - t0 > HARD_CAP_S:
+                reason = f"exceeded {HARD_CAP_S // 3600}h hard cap"
+            if reason:
+                log(f"lm-eval: {task} watchdog: {reason}; killing")
+                proc.kill()
+                proc.wait(timeout=60)
+                return [], failure(task, log_path, f"killed by watchdog ({reason})")
+    if proc.returncode != 0:
+        return [], failure(task, log_path, f"exit code {proc.returncode}")
 
     result_files = sorted(eval_dir.rglob("results_*.json"), key=lambda p: p.stat().st_mtime)
     if not result_files:
@@ -870,13 +841,6 @@ def run_lm_eval_task(task: str, base_url: str, model: str, tokenizer: str, limit
 # Tool-calling benchmark (BFCL v4 via EvalScope)
 # ---------------------------------------------------------------------------
 
-# Cap BFCL generation so a rambling model (e.g. uncensored variants on the
-# irrelevance subset) can't run away and trigger EvalScope client retry-loops.
-# Tool-calling answers are short, so 2048 tokens is ample; timeout is a
-# per-request safety net (seconds).
-BFCL_MAX_TOKENS = 2048
-BFCL_TIMEOUT_S = 600
-
 BFCL_RUNNER = '''\
 import json, sys
 from evalscope import TaskConfig, run_task
@@ -894,7 +858,6 @@ cfg = TaskConfig(
     }}}},
     eval_batch_size={batch},
     limit={limit},
-    generation_config={{"max_tokens": {max_tokens}, "timeout": {timeout}}},
     work_dir={work_dir!r},
 )
 run_task(task_cfg=cfg)
@@ -925,19 +888,19 @@ def run_bfcl(base_url: str, model: str, subsets: list, limit: int,
     log_path = outdir / "bfcl.log"
     if not py or not Path(py).exists():
         return [], failure("bfcl", log_path,
-                           "BFCL venv not available - run through benchllm.sh (builds .benchllm-bfcl-venv unless --skip-bfcl)")
+                           "BFCL venv not available - run through benchllm.sh with --with-bfcl")
     work_dir = outdir / "bfcl"
     work_dir.mkdir(parents=True, exist_ok=True)
     runner = work_dir / "bfcl_runner.py"
     runner.write_text(BFCL_RUNNER.format(
         subsets=subsets, model=model, api_url=base_url,
-        batch=8, limit=(limit or None), timeout=BFCL_TIMEOUT_S,
-        max_tokens=BFCL_MAX_TOKENS, work_dir=str(work_dir)))
+        batch=8, limit=(limit or None), work_dir=str(work_dir)))
 
     log(f"BFCL: {len(subsets)} subset(s) (limit={limit or 'full'}) via EvalScope")
-    rc, _ = stream_process([py, str(runner)], log_path)
-    if rc != 0:
-        return [], failure("bfcl", log_path, f"EvalScope exit code {rc}")
+    with open(log_path, "wb") as f:
+        proc = subprocess.run([py, str(runner)], stdout=f, stderr=subprocess.STDOUT)
+    if proc.returncode != 0:
+        return [], failure("bfcl", log_path, f"EvalScope exit code {proc.returncode}")
 
     reports = [p for p in work_dir.rglob("*.json") if "reports" in p.parts]
     if not reports:
@@ -1179,12 +1142,26 @@ def main() -> None:
     eval_failures: list[dict] = []
     bfcl_rows = None
     try:
-        if not args.skip_bfcl:
-            subsets = [s.strip() for s in args.bfcl_subsets.split(",") if s.strip()]
-            bfcl_rows, bfcl_err = run_bfcl(base_url, served, subsets, args.bfcl_limit, outdir)
-            if bfcl_err:
-                eval_failures.append(bfcl_err)
-                log(f"  FAILED bfcl: {bfcl_err['reason']}")
+        if not args.skip_speed:
+            sizes, ladder_warnings = prompt_ladder(args.max_prompt, max_model_len,
+                                                   args.output_tokens, args.steps)
+            warnings += ladder_warnings
+            log(f"Prompt ladder: {sizes}")
+            ladder_points = [
+                run_speed_point(base_url, served, size, 1, args.output_tokens,
+                                args.request_timeout, args.seed, outdir)
+                for size in sizes
+            ]
+            for p in ladder_points:
+                if p["failed"]:
+                    warnings.append(
+                        f"Speed point {p['target_tokens']} tokens failed: {'; '.join(p['errors'])}")
+        else:
+            ladder_points, reuse_note = load_previous_speed(
+                SCRIPT_DIR / "bench-results" / rec.results_name, outdir)
+            if reuse_note:
+                warnings.append(reuse_note)
+
         if not args.skip_eval:
             eval_rows = []
             specs = [t.strip() for t in args.eval_tasks.split(",") if t.strip()]
@@ -1229,26 +1206,12 @@ def main() -> None:
                                 "description": TASK_DESCRIPTIONS.get(rtask, "")})
                         break
 
-        if not args.skip_speed:
-            sizes, ladder_warnings = prompt_ladder(args.max_prompt, max_model_len,
-                                                   args.output_tokens, args.steps)
-            warnings += ladder_warnings
-            log(f"Prompt ladder: {sizes}")
-            ladder_points = [
-                run_speed_point(base_url, served, size, 1, args.output_tokens,
-                                args.request_timeout, args.seed, outdir)
-                for size in sizes
-            ]
-            for p in ladder_points:
-                if p["failed"]:
-                    warnings.append(
-                        f"Speed point {p['target_tokens']} tokens failed: {'; '.join(p['errors'])}")
-        else:
-            ladder_points, reuse_note = load_previous_speed(
-                SCRIPT_DIR / "bench-results" / rec.results_name, outdir)
-            if reuse_note:
-                warnings.append(reuse_note)
-
+        if not args.skip_bfcl:
+            subsets = [s.strip() for s in args.bfcl_subsets.split(",") if s.strip()]
+            bfcl_rows, bfcl_err = run_bfcl(base_url, served, subsets, args.bfcl_limit, outdir)
+            if bfcl_err:
+                eval_failures.append(bfcl_err)
+                log(f"  FAILED bfcl: {bfcl_err['reason']}")
     finally:
         if not args.skip_run:
             workload.stop()

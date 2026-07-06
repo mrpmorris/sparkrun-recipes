@@ -1,6 +1,6 @@
 # Qwen3.6-27B-AEON-Ultimate-Uncensored-DFlash.yaml benchmark results
 
-Generated UTC: 2026-07-05T19:40:13.744333+00:00
+Generated UTC: 2026-07-05T23:47:49.880107+00:00
 
 ## Run
 
@@ -14,9 +14,9 @@ Generated UTC: 2026-07-05T19:40:13.744333+00:00
 | Base URL | http://127.0.0.1:8000/v1 |
 | Host | Linux 6.17.0-1026-nvidia aarch64 GNU/Linux |
 | GPU | NVIDIA GB10 |
-| Output dir | /home/mrpmorris/sparkrun-recipes/bench-results/Qwen3.6-27B-AEON-Ultimate-Uncensored-DFlash.yaml/20260705-181927 |
+| Output dir | /home/mrpmorris/sparkrun-recipes/bench-results/Qwen3.6-27B-AEON-Ultimate-Uncensored-DFlash.yaml/20260705-225334 |
 | Command | /home/mrpmorris/sparkrun-recipes/benchllm.py --recipe /home/mrpmorris/sparkrun-recipes/Qwen3.6-27B-AEON-Ultimate-Uncensored-DFlash.yaml --cleanup |
-| Total duration | 4846 s |
+| Total duration | 3256 s |
 
 ## Recipe settings
 
@@ -43,42 +43,50 @@ Generated UTC: 2026-07-05T19:40:13.744333+00:00
 
 | Prompt tokens | Server prompt tokens | TTFT s | TPOT ms | Prefill tok/s | Generation tok/s | Total s |
 | --- | --- | --- | --- | --- | --- | --- |
-| 256 | 273 | 0.482 | 22.0 | 566.6 | 45.62 | 6.09 |
-| 1024 | 1042 | 0.899 | 27.8 | 1158.7 | 36.05 | 8.00 |
-| 4096 | 4113 | 1.846 | 36.9 | 2228.7 | 27.21 | 11.25 |
-| 16384 | 16398 | 9.902 | 40.3 | 1656.0 | 24.92 | 20.17 |
-| 65536 | 65550 | 44.450 | 64.5 | 1474.7 | 15.56 | 60.91 |
-| 259267 | 259284 | 320.049 | 107.8 | 810.1 | 9.31 | 347.54 |
+| 256 | 269 | 0.201 | 24.6 | 1338.5 | 40.89 | 6.46 |
+| 1024 | 1038 | 0.642 | 30.6 | 1617.3 | 32.76 | 8.46 |
+| 4096 | 4110 | 1.806 | 34.7 | 2275.5 | 28.95 | 10.65 |
+| 16384 | 16402 | 9.176 | 40.0 | 1787.4 | 25.08 | 19.38 |
+| 65536 | 65555 | 45.143 | 43.8 | 1452.2 | 22.90 | 56.32 |
+| 259267 | 259282 | 320.060 | 100.7 | 810.1 | 9.97 | 345.73 |
 
 TTFT = time to first token. TPOT = time per output token (mean inter-token latency after the first token). Prefill tok/s = prompt tokens / TTFT. Generation tok/s = output tokens per second after the first token.
 
 ## Intelligence (lm-eval)
 
-6 task(s) completed, 1 failed.
+6 task(s) completed, 0 failed.
 
 | Task | Description | Metric | Value | Stderr | Samples |
 | --- | --- | --- | --- | --- | --- |
-| mmlu | General knowledge across 57 academic subjects | acc,none | 0.7982 | 0.0168 |  |
-| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,strict-match | 0.0600 | 0.0239 | 100 |
-| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,flexible-extract | 0.1000 | 0.0302 | 100 |
+| mmlu | General knowledge across 57 academic subjects | acc,none | 0.7789 | 0.0171 |  |
+| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,strict-match | 0.1400 | 0.0349 | 100 |
+| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,flexible-extract | 0.1300 | 0.0338 | 100 |
 | arc_challenge | Hard science exam questions (reasoning) | acc,none | 0.5300 | 0.0502 | 100 |
-| arc_challenge | Hard science exam questions (reasoning) | acc_norm,none | 0.5300 | 0.0502 | 100 |
-| hellaswag | Commonsense sentence completion | acc,none | 0.5500 | 0.0500 | 100 |
-| hellaswag | Commonsense sentence completion | acc_norm,none | 0.6800 | 0.0469 | 100 |
-| humaneval | Coding: write Python functions that pass unit tests | pass@1,create_test | 0.8500 | 0.0359 | 100 |
-| mbpp | Coding: basic Python programming problems, graded by unit tests | pass_at_1,none | 0.7200 | 0.0451 | 100 |
+| arc_challenge | Hard science exam questions (reasoning) | acc_norm,none | 0.5100 | 0.0502 | 100 |
+| hellaswag | Commonsense sentence completion | acc,none | 0.5200 | 0.0502 | 100 |
+| hellaswag | Commonsense sentence completion | acc_norm,none | 0.6400 | 0.0482 | 100 |
+| humaneval | Coding: write Python functions that pass unit tests | pass@1,create_test | 0.8400 | 0.0368 | 100 |
+| mbpp | Coding: basic Python programming problems, graded by unit tests | pass_at_1,none | 0.2700 | 0.0446 | 100 |
 
 ## Tool calling (BFCL v4 via EvalScope)
 
-_No scores (see Failed benchmarks / bfcl.log)._
+Berkeley Function Calling Leaderboard v4 — exercises the recipe's real tool-calling path (OpenAI `tools` API + the recipe's tool_call_parser / auto-tool-choice). Score is accuracy (0-1); OVERALL is BFCL's weighted aggregate.
 
-### Failed benchmarks
-
-These benchmarks could not complete as the model is currently served — a failure here is itself a result: the model/config could not perform this evaluation. Multiple-choice tasks (acc / acc_norm) request token log-probabilities from the inference server; generative tasks do not.
-
-| Task | Description | Reason | Log |
-| --- | --- | --- | --- |
-| bfcl | Tool/function calling (BFCL v4 via EvalScope) | ModuleNotFoundError: No module named 'soundfile' | bfcl.log |
+| Subset / Category | Score | Samples |
+| --- | --- | --- |
+| Qwen3.6-27B@bfcl_v4 | 0.9086 |  |
+| acc | 0.9086 | 175 |
+| irrelevance | 0.9200 | 25 |
+| live_multiple | 0.7600 | 25 |
+| live_simple | 0.9200 | 25 |
+| multiple | 0.9600 | 25 |
+| parallel | 0.8800 | 25 |
+| parallel_multiple | 0.9600 | 25 |
+| simple_python | 0.9600 | 25 |
+| NON_LIVE | 0.9400 | 100 |
+| LIVE | 0.8400 | 50 |
+| HALLUCINATION | 0.9200 | 25 |
+| OVERALL | 0.2700 | 175 |
 
 ## Warnings
 
