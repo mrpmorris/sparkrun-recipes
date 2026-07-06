@@ -363,6 +363,11 @@ def hf_incomplete_count() -> int:
 # server, so the HTTP endpoint never comes up and wait_for_ready would burn the
 # whole ready-timeout. Detect it by scanning the container serve log instead.
 _ERR_LINE = re.compile(r"([A-Za-z_][\w.]*(?:Error|Exception)):\s*(.+)")
+# vLLM/sglang reject a bad recipe arg at launch via argparse, e.g.
+# "vllm serve: error: argument --diffusion-config/-dc: Value ... cannot be
+# converted". These print usage + exit, so the endpoint never comes up.
+_ARGPARSE_ERR = re.compile(
+    r"error:\s+(argument\s.+|unrecognized arguments.+|the following arguments.+)")
 FATAL_SERVE_PHRASES = (
     "Engine core initialization failed",
     "Engine process failed to start",
@@ -397,9 +402,9 @@ def read_serve_log(max_bytes: int = 20000) -> str:
 
 
 def fatal_serve_error(text: str):
-    """Return a concise error string if the serve log shows a fatal engine
-    crash, else None. Matches exception lines (XxxError: msg) and known
-    engine-death phrases."""
+    """Return a concise error string if the serve log shows a fatal startup
+    failure, else None. Matches exception lines (XxxError: msg), argparse/CLI
+    rejections (bad recipe args), and known engine-death phrases."""
     if not text:
         return None
     hit = None
@@ -407,6 +412,8 @@ def fatal_serve_error(text: str):
         m = _ERR_LINE.search(line)
         if m:
             hit = f"{m.group(1)}: {m.group(2).strip()}"
+        elif _ARGPARSE_ERR.search(line):
+            hit = line.strip()
     if hit:
         return hit
     for phrase in FATAL_SERVE_PHRASES:
