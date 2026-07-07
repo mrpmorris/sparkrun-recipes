@@ -547,7 +547,7 @@ def main() -> None:
     parser.add_argument("--path", default="benchmarks")
     parser.add_argument("--input-dir", type=Path)
     parser.add_argument("--gradient", type=Path)
-    parser.add_argument("--output", type=Path, default=Path("sparkrun_reports.pdf"))
+    parser.add_argument("--output", type=Path, default=Path("benchmarks/_Comparison.pdf"))
     args = parser.parse_args()
 
     if args.input_dir:

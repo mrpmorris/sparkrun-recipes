@@ -96,8 +96,8 @@ echo "============================================================"
 echo
 echo "benchllm-all: generating comparison PDF..."
 if "$SCRIPT_DIR/.benchllm-venv/bin/python" "$SCRIPT_DIR/benchllm-comparison.py" \
-     --input-dir "$SCRIPT_DIR/benchmarks" --output "$SCRIPT_DIR/_Comparison.pdf"; then
-  echo "benchllm-all: wrote $SCRIPT_DIR/_Comparison.pdf"
+     --input-dir "$SCRIPT_DIR/benchmarks" --output "$SCRIPT_DIR/benchmarks/_Comparison.pdf"; then
+  echo "benchllm-all: wrote $SCRIPT_DIR/benchmarks/_Comparison.pdf"
 else
   echo "benchllm-all: WARNING - comparison PDF generation failed" >&2
 fi
