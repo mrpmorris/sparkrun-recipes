@@ -1,6 +1,6 @@
 # Qwen3.6-atlas-27b-fp8-vllm.yaml benchmark results
 
-Generated UTC: 2026-07-07T01:16:30.088295+00:00
+Generated UTC: 2026-07-07T14:22:36.224138+00:00
 
 ## Run
 
@@ -14,9 +14,9 @@ Generated UTC: 2026-07-07T01:16:30.088295+00:00
 | Base URL | http://127.0.0.1:8000/v1 |
 | Host | Linux 6.17.0-1026-nvidia aarch64 GNU/Linux |
 | GPU | NVIDIA GB10 |
-| Output dir | /home/mrpmorris/sparkrun-recipes/bench-results/Qwen3.6-atlas-27b-fp8-vllm.yaml/20260706-205539 |
-| Command | /home/mrpmorris/sparkrun-recipes/benchllm.py --recipe Qwen3.6-atlas-27b-fp8-vllm.yaml |
-| Total duration | 15651 s |
+| Output dir | /home/mrpmorris/sparkrun-recipes/bench-results/Qwen3.6-atlas-27b-fp8-vllm.yaml/20260707-103703 |
+| Command | /home/mrpmorris/sparkrun-recipes/benchllm.py --recipe /home/mrpmorris/sparkrun-recipes/Qwen3.6-atlas-27b-fp8-vllm.yaml --cleanup |
+| Total duration | 13533 s |
 
 ## Recipe settings
 
@@ -38,7 +38,12 @@ Generated UTC: 2026-07-07T01:16:30.088295+00:00
 
 ## Speed vs prompt size (single request)
 
-_Skipped (--skip-speed)._
+| Prompt tokens | Server prompt tokens | TTFT s | TPOT ms | Prefill tok/s | Generation tok/s | Total s |
+| --- | --- | --- | --- | --- | --- | --- |
+| 256 | 271 | 0.998 | 66.6 | 271.6 | 15.06 | 20.85 |
+| 1024 | 1040 | 2.662 | 67.3 | 390.7 | 14.93 | 18.87 |
+| 4096 | 4115 | 9.320 | 70.6 | 441.5 | 14.22 | 27.75 |
+| 16384 | | FAILED | | | | |
 
 TTFT = time to first token. TPOT = time per output token (mean inter-token latency after the first token). Prefill tok/s = prompt tokens / TTFT. Generation tok/s = output tokens per second after the first token.
 
@@ -51,7 +56,7 @@ TTFT = time to first token. TPOT = time per output token (mean inter-token laten
 | gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,strict-match | 0.0600 | 0.0239 | 100 |
 | gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,flexible-extract | 0.0800 | 0.0273 | 100 |
 | humaneval | Coding: write Python functions that pass unit tests | pass@1,create_test | 0.0000 | 0.0000 | 100 |
-| mbpp | Coding: basic Python programming problems, graded by unit tests | pass_at_1,none | 0.1700 | 0.0378 | 100 |
+| mbpp | Coding: basic Python programming problems, graded by unit tests | pass_at_1,none | 0.1600 | 0.0368 | 100 |
 
 ## Tool calling (BFCL v4 via EvalScope)
 
@@ -59,19 +64,19 @@ Berkeley Function Calling Leaderboard v4 — exercises the recipe's real tool-ca
 
 | Subset / Category | Score | Samples |
 | --- | --- | --- |
-| Qwen3.6-27B-FP8@bfcl_v4 | 0.3086 |  |
-| acc | 0.3086 | 175 |
-| irrelevance | 0.8400 | 25 |
-| live_multiple | 0.1200 | 25 |
-| live_simple | 0.4000 | 25 |
+| Qwen3.6-27B-FP8@bfcl_v4 | 0.2686 |  |
+| acc | 0.2686 | 175 |
+| irrelevance | 0.6000 | 25 |
+| live_multiple | 0.0800 | 25 |
+| live_simple | 0.4800 | 25 |
 | multiple | 0.2400 | 25 |
-| parallel | 0.0000 | 25 |
+| parallel | 0.0400 | 25 |
 | parallel_multiple | 0.0000 | 25 |
-| simple_python | 0.5600 | 25 |
-| NON_LIVE | 0.2000 | 100 |
-| LIVE | 0.2600 | 50 |
-| HALLUCINATION | 0.8400 | 25 |
-| OVERALL | 0.1300 | 175 |
+| simple_python | 0.4400 | 25 |
+| NON_LIVE | 0.1800 | 100 |
+| LIVE | 0.2800 | 50 |
+| HALLUCINATION | 0.6000 | 25 |
+| OVERALL | 0.1060 | 175 |
 
 ### Failed benchmarks
 
@@ -88,3 +93,5 @@ These benchmarks could not complete as the model is currently served — a failu
 - lm-eval ran with sample limits (default 100, per task/subtask; tasks: mmlu:10,gsm8k,arc_challenge,hellaswag,humaneval,mbpp); scores are comparative samples, not full-benchmark numbers.
 - Server does not support echo+logprobs on /v1/completions (loglikelihood scoring); multiple-choice tasks skipped.
 - Top prompt rung capped at 259267 tokens (max length 262144 minus 256 output tokens and 2621 tokenizer-skew margin).
+- Speed point 16384 tokens failed: JSONDecodeError: Unterminated string starting at: line 1 column 223 (char 222)
+- Speed ladder stopped after the 16384-token failure; skipped larger rungs: [65536, 259267].

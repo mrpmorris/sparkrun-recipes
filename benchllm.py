@@ -1037,9 +1037,14 @@ def write_report(report_path: Path, ctx: dict) -> None:
     lines.append("")
 
     lines += ["## Speed vs prompt size (single request)", ""]
-    lines += (["_Skipped (--skip-speed)._"] if ctx["ladder_points"] is None
-              else speed_table(ctx["ladder_points"]) if ctx["ladder_points"]
-              else ["_None._"])
+    pts = ctx["ladder_points"]
+    if pts:
+        lines += speed_table(pts)
+    elif ctx["args"].skip_speed:
+        lines += ["_Skipped (--skip-speed); no previous speed data to reuse._"]
+    else:
+        lines += ["_Speed benchmark failed: no prompt-size rung completed "
+                  "(see the run's speed-*.json and serve log)._"]
     lines += ["", "TTFT = time to first token. TPOT = time per output token (mean inter-token "
               "latency after the first token). Prefill tok/s = prompt tokens / TTFT. "
               "Generation tok/s = output tokens per second after the first token.", ""]
@@ -1241,15 +1246,28 @@ def main() -> None:
                                                    args.output_tokens, args.steps)
             warnings += ladder_warnings
             log(f"Prompt ladder: {sizes}")
-            ladder_points = [
-                run_speed_point(base_url, served, size, 1, args.output_tokens,
-                                args.request_timeout, args.seed, outdir)
-                for size in sizes
-            ]
-            for p in ladder_points:
+            # Build incrementally so a rung that fails (or raises) can't abort the
+            # whole phase and leave ladder_points unset. Prompt size is monotonic,
+            # so once a rung fails the larger ones only fail harder (and a ~250k
+            # prefill can hang for hours) - stop the ladder at the first failure.
+            ladder_points = []
+            for i, size in enumerate(sizes):
+                try:
+                    p = run_speed_point(base_url, served, size, 1, args.output_tokens,
+                                        args.request_timeout, args.seed, outdir)
+                except Exception as exc:  # noqa: BLE001 - a rung must not kill the phase
+                    p = {"target_tokens": size, "concurrency": 1,
+                         "output_tokens": args.output_tokens, "ok": 0, "failed": 1,
+                         "errors": [f"{type(exc).__name__}: {exc}"]}
+                ladder_points.append(p)
                 if p["failed"]:
                     warnings.append(
                         f"Speed point {p['target_tokens']} tokens failed: {'; '.join(p['errors'])}")
+                    remaining = sizes[i + 1:]
+                    if remaining:
+                        warnings.append(f"Speed ladder stopped after the {size}-token "
+                                        f"failure; skipped larger rungs: {remaining}.")
+                    break
         else:
             ladder_points, reuse_note = load_previous_speed(
                 SCRIPT_DIR / "bench-results" / rec.results_name, outdir)

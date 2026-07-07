@@ -15,6 +15,9 @@ DEPS=(
   "requests>=2.32"
   "tiktoken>=0.8"
   "pyyaml>=6.0"
+  "pandas>=2.2"
+  "matplotlib>=3.8"
+  "pillow>=10"
 )
 
 # BFCL tool-calling benchmark runs in its own venv: EvalScope + bfcl-eval pull heavy

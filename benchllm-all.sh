@@ -92,4 +92,14 @@ echo "============================================================"
 [[ ${#ok_list[@]}   -gt 0 ]] && printf '  ok    %s\n' "${ok_list[@]}"
 [[ ${#fail_list[@]} -gt 0 ]] && printf '  FAIL  %s\n' "${fail_list[@]}"
 
+# --- Comparison PDF ---------------------------------------------------------
+echo
+echo "benchllm-all: generating comparison PDF..."
+if "$SCRIPT_DIR/.benchllm-venv/bin/python" "$SCRIPT_DIR/benchllm-comparison.py" \
+     --input-dir "$SCRIPT_DIR/benchmarks" --output "$SCRIPT_DIR/_Comparison.pdf"; then
+  echo "benchllm-all: wrote $SCRIPT_DIR/_Comparison.pdf"
+else
+  echo "benchllm-all: WARNING - comparison PDF generation failed" >&2
+fi
+
 [[ ${#fail_list[@]} -eq 0 ]]
