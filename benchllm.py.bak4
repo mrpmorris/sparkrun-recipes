@@ -98,10 +98,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--max-prompt", type=int, default=260_000, help="Ceiling for the prompt-size ladder (default 260000)")
     p.add_argument("--steps", type=int, default=8, help="Number of prompt-size steps up to the ceiling (default 8, i.e. max/8 increments)")
     p.add_argument("--output-tokens", type=int, default=256, help="Generation length for speed tests (default 256)")
-    p.add_argument("--eval-tasks", default="mmlu:10,gsm8k:0,arc_challenge:0,hellaswag,humaneval:0,mbpp:0",
+    p.add_argument("--eval-tasks", default="mmlu:10,gsm8k,arc_challenge,hellaswag,humaneval,mbpp",
                    help="lm-eval tasks, each optionally with its own sample limit as task:limit. "
                         "MMLU has 57 subtasks and the limit applies per subtask, so it defaults to 10 "
-                        "(= 570 questions); gsm8k/arc_challenge/humaneval/mbpp run full (:0) since each is <20m at full size, hellaswag stays at --eval-limit. (default mmlu:10,gsm8k:0,arc_challenge:0,hellaswag,humaneval:0,mbpp:0)")
+                        "(= 570 questions). (default mmlu:10,gsm8k,arc_challenge,hellaswag,humaneval,mbpp)")
     p.add_argument("--eval-limit", type=int, default=100,
                    help="Samples per lm-eval task without an explicit task:limit, 0 = full run (default 100)")
     p.add_argument("--eval-concurrency", type=int, default=4, help="Concurrent lm-eval requests (default 4)")

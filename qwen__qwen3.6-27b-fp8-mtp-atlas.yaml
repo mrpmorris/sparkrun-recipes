@@ -1,0 +1,31 @@
+recipe_version: '2'
+model: Qwen/Qwen3.6-27B-FP8
+runtime: atlas
+max_nodes: 1
+container: avarok/atlas-gb10:dev
+metadata:
+  description: "Qwen3.6-27B-FP8 on the Atlas :dev runtime. fp8 KV WITH calibration, SSM cache tuning, speculative decoding, hermes tool parser, 32k context - the config reported to make atlas serve correctly. Explicit command block so the unmapped --fp8-kv-calibration-tokens flag is passed verbatim."
+  maintainer: avarok
+  category: chat
+  model_params: 27B
+  model_dtype: fp8
+  quantization: fp8
+  kv_dtype: fp8
+defaults:
+  port: 8000
+command: |
+  spark serve {model} \
+    --port {port} \
+    --host 0.0.0.0 \
+    --max-seq-len 262144 \
+    --max-batch-size 4 \
+    --kv-cache-dtype fp8 \
+    --fp8-kv-calibration-tokens 256 \
+    --kv-high-precision-layers auto \
+    --gpu-memory-utilization 0.90 \
+    --enable-prefix-caching \
+    --ssm-cache-slots 128 \
+    --ssm-checkpoint-interval 16 \
+    --speculative \
+    --num-drafts 1 \
+    --tool-call-parser hermes

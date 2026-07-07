@@ -41,7 +41,7 @@ defaults:
 
   gpu_memory_utilization: 0.85
   max_model_len: 262144
-  max_num_seqs: 64
+  max_num_seqs: 16
   max_num_batched_tokens: 16384
 
   # NVFP4 checkpoint is packed as compressed-tensors (not modelopt like the 27B).
