@@ -5,6 +5,7 @@ container: scitrera/dgx-spark-llama-cpp:b9898-cu131
 min_nodes: 1
 max_nodes: 1
 metadata:
+  tokenizer: deepseek-ai/DeepSeek-V4-Flash
   description: "DeepSeek-V4-Flash 671B, unsloth UD-IQ2_M GGUF (90.9 GB, fits one GB10). Served on llama.cpp llama-server. vLLM in the spark-arena container has no GGUF support, so llama-cpp is the runtime that natively loads the unsloth ...-GGUF:TAG quant."
   maintainer: pmorris
   category: chat
@@ -14,7 +15,7 @@ metadata:
 defaults:
   port: 8000
   host: 0.0.0.0
-  max_model_len: 262144
+  max_model_len: 32768
   n_gpu_layers: 99
 command: |
   llama-server \

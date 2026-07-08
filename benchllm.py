@@ -1171,6 +1171,11 @@ def main() -> None:
     defaults = recipe.get("defaults") or {}
     model_id = recipe.get("model", "")
     served = defaults.get("served_model_name") or model_id
+    # lm-eval needs a real HF tokenizer repo. GGUF model ids carry a :QUANT
+    # tag (invalid HF repo id) and their repos ship no HF tokenizer files, so
+    # recipes can override via metadata.tokenizer; else strip any :tag.
+    _md = recipe.get("metadata") or {}
+    tokenizer_id = _md.get("tokenizer") or model_id.split(":", 1)[0]
     port = int(defaults.get("port", 8000))
     max_model_len = defaults.get("max_model_len")
     max_model_len = int(max_model_len) if max_model_len else None
@@ -1212,9 +1217,11 @@ def main() -> None:
         wait_for_ready(base_url, args.ready_timeout)
     except StartupError as exc:
         log(f"Startup failed: {exc}")
-        if not args.skip_run:
+        if not args.skip_run and not report_path.exists():
             write_error_report(report_path, rec.display, rec.ref, str(exc))
             log(f"Wrote failure report: {report_path} (recipe will be skipped on re-runs)")
+        elif report_path.exists():
+            log(f"Startup failed; preserving existing report: {report_path}")
         sys.exit(1)
     workload.follow_logs(outdir / "serve-follow.log")
     warmup(base_url, served)
@@ -1264,7 +1271,7 @@ def main() -> None:
                                   "(required for loglikelihood scoring of multiple-choice tasks)",
                         "description": TASK_DESCRIPTIONS.get(task, "")})
                     continue
-                rows, err = run_lm_eval_task(task, base_url, served, model_id or served,
+                rows, err = run_lm_eval_task(task, base_url, served, tokenizer_id or served,
                                              limit, args.eval_concurrency, outdir)
                 eval_rows += rows
                 if err:
@@ -1322,6 +1329,17 @@ def main() -> None:
     finally:
         if not args.skip_run:
             workload.stop()
+
+    # Write the report only on a clean finish. This line is unreachable if the
+    # phases raised or the process was Ctrl+C'd / killed (SIGINT/SIGTERM ->
+    # SystemExit unwinds past it), so an interruption leaves any existing report
+    # untouched. And only overwrite when the run produced real results OR no
+    # report exists yet, so a mid-run server death (every phase failed) cannot
+    # clobber a previously-good report, while brand-new failures are still
+    # recorded for batch skip.
+    produced_results = bool(eval_rows) or bool(bfcl_rows) or any(
+        (pt or {}).get("ok") for pt in (ladder_points or []))
+    if produced_results or not report_path.exists():
         write_report(report_path, {
             "args": args, "rec": rec, "recipe": recipe, "defaults": defaults,
             "model_id": model_id, "served": served, "base_url": base_url,
@@ -1331,6 +1349,8 @@ def main() -> None:
             "bfcl_rows": bfcl_rows, "skip_bfcl": args.skip_bfcl,
             "duration_s": time.monotonic() - t_start,
         })
+    else:
+        log(f"No usable results (server down/interrupted); preserving existing report: {report_path}")
 
 
 if __name__ == "__main__":

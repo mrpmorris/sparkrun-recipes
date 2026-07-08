@@ -98,3 +98,21 @@ command: |
     --override-generation-config '{generation_config}' \
     --tool-call-parser {tool_call_parser} \
     --enable-auto-tool-choice
+
+# Pre-distribute the DFlash drafter at the pinned pre-retrain revision so a
+# virgin machine caches the correct 8-layer full-attention drafter during the
+# distribution phase. sparkrun auto-adds the drafter from speculative_config
+# but drops the revision (fetches main = the broken 6-layer retrain), and it
+# serves with HF_HUB_OFFLINE=1, so without this it fails offline. A custom
+# distribution_config replaces the auto default, so {model}/{container} are
+# re-listed here. add_model dedups by name, so the auto-add is skipped and this
+# pinned revision wins.
+distribution_config:
+  models:
+    entries:
+      - name: "{model}"
+      - name: z-lab/Qwen3.6-35B-A3B-DFlash
+        revision: 42d3b34d588423cdae7ba8f53a8cf7789346a719
+  containers:
+    entries:
+      - name: "{container}"
