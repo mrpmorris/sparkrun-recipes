@@ -75,7 +75,7 @@ for recipe in "${recipes[@]}"; do
   echo "============================================================"
   echo "benchllm-all: >>> $recipe"
   echo "============================================================"
-  if "$BENCHLLM" --recipe "$recipe" --cleanup --no-comparison "$@"; then
+  if "$BENCHLLM" --recipe "$recipe" --cleanup "$@"; then
     ok_list+=("$recipe")
   else
     rc=$?
@@ -91,16 +91,5 @@ echo "benchllm-all: summary — ${#ok_list[@]} ok, ${#fail_list[@]} failed"
 echo "============================================================"
 [[ ${#ok_list[@]}   -gt 0 ]] && printf '  ok    %s\n' "${ok_list[@]}"
 [[ ${#fail_list[@]} -gt 0 ]] && printf '  FAIL  %s\n' "${fail_list[@]}"
-
-# --- Comparison PDF (built once here; benchllm.sh is called with
-# --no-comparison so it is not rebuilt after every recipe) ------------------
-echo
-echo "benchllm-all: generating comparison PDF..."
-if "$SCRIPT_DIR/.benchllm-venv/bin/python" "$SCRIPT_DIR/benchllm-comparison.py" \
-     --input-dir "$SCRIPT_DIR/benchmarks" --output "$SCRIPT_DIR/benchmarks/_Comparison.pdf"; then
-  echo "benchllm-all: wrote $SCRIPT_DIR/benchmarks/_Comparison.pdf"
-else
-  echo "benchllm-all: WARNING - comparison PDF generation failed" >&2
-fi
 
 [[ ${#fail_list[@]} -eq 0 ]]

@@ -65,32 +65,17 @@ if [[ "$SKIP_BFCL" == "0" ]]; then
   export BENCHLLM_BFCL_PYTHON="$VENV_BFCL/bin/python"
 fi
 
-# --no-comparison: benchllm-all passes this so the comparison PDF is NOT
-# rebuilt after every recipe; it is built once at the end of the batch.
-# benchllm.py does not know this flag, so strip it from the args it receives.
-NO_COMPARISON=0
-py_args=()
-for arg in "$@"; do
-  if [[ "$arg" == "--no-comparison" ]]; then
-    NO_COMPARISON=1
-  else
-    py_args+=("$arg")
-  fi
-done
-
-"$VENV/bin/python" "$SCRIPT_DIR/benchllm.py" "${py_args[@]+"${py_args[@]}"}"
+"$VENV/bin/python" "$SCRIPT_DIR/benchllm.py" "$@"
 rc=$?
 
-if [[ "$NO_COMPARISON" == "0" ]]; then
-  # --- Comparison PDF -------------------------------------------------------
-  echo
-  echo "benchllm: generating comparison PDF..."
-  if "$VENV/bin/python" "$SCRIPT_DIR/benchllm-comparison.py" \
-       --input-dir "$SCRIPT_DIR/benchmarks" --output "$SCRIPT_DIR/benchmarks/_Comparison.pdf"; then
-    echo "benchllm: wrote $SCRIPT_DIR/benchmarks/_Comparison.pdf"
-  else
-    echo "benchllm: WARNING - comparison PDF generation failed" >&2
-  fi
+# --- Comparison PDF ---------------------------------------------------------
+echo
+echo "benchllm: generating comparison PDF..."
+if "$VENV/bin/python" "$SCRIPT_DIR/benchllm-comparison.py" \
+     --input-dir "$SCRIPT_DIR/benchmarks" --output "$SCRIPT_DIR/benchmarks/_Comparison.pdf"; then
+  echo "benchllm: wrote $SCRIPT_DIR/benchmarks/_Comparison.pdf"
+else
+  echo "benchllm: WARNING - comparison PDF generation failed" >&2
 fi
 
 exit $rc
