@@ -220,37 +220,6 @@ def cleanup_downloaded_models(preexisting: set) -> None:
 # Workload lifecycle
 # ---------------------------------------------------------------------------
 
-def required_gpu_mem(sparkrun: str, recipe_ref: str) -> "tuple[float, float] | None":
-    """What fraction of GPU memory this recipe actually NEEDS, vs what it asks for.
-
-    Runs `sparkrun run --dry-run` and parses its VRAM estimation: "Per-GPU total"
-    (weights + KV for one max-context sequence), the device total, and the
-    recipe-configured gpu_memory_utilization. Need = (per-GPU total + overhead) /
-    device total, rounded up to 2 dp. Returns (need_frac, configured_frac), or
-    None when the estimate is unusable (e.g. GGUF: estimator reports 0.00 GB).
-    """
-    OVERHEAD_GB = 5.0   # CUDA context, activations, graphs — not in the estimate
-    try:
-        proc = subprocess.run([sparkrun, "run", recipe_ref, "--dry-run"],
-                              capture_output=True, text=True, timeout=120)
-    except Exception:
-        return None
-    out = proc.stdout + proc.stderr
-    m_total = re.search(r"Per-GPU total:\s*([0-9.]+)\s*GB", out)
-    m_dev   = re.search(r"\(([0-9.]+)\s*GB\s*x\s*[0-9.]+%\)", out)
-    m_cfg   = re.search(r"gpu_memory_utilization:\s*([0-9.]+)%", out)
-    if not (m_total and m_dev and m_cfg):
-        return None
-    per_gpu = float(m_total.group(1))
-    if per_gpu <= 0.0:          # estimator couldn't size the model (e.g. GGUF)
-        return None
-    dev_gb = float(m_dev.group(1))
-    configured = float(m_cfg.group(1)) / 100.0
-    need = math.ceil((per_gpu + OVERHEAD_GB) / dev_gb * 100.0) / 100.0
-    need = max(need, 0.50)      # lower bound: never cap below 0.5
-    return (need, configured)
-
-
 class Workload:
     """Starts the recipe with sparkrun and guarantees it is stopped on exit."""
 
@@ -266,20 +235,10 @@ class Workload:
         # `sparkrun run` blocks here while it downloads the model and brings the
         # container up, so poll the HF cache and report download progress rather
         # than going silent after "Launching workload".
-        # Cap gpu_memory_utilization at what the model actually needs: if the
-        # recipe asks for more than required, pass the lower value so the eval
-        # harnesses keep enough unified memory to survive (avoids earlyoom).
-        run_cmd = [self.sparkrun, "run", self.recipe.ref, "--ensure", "--no-follow"]
-        est = required_gpu_mem(self.sparkrun, self.recipe.ref)
-        if est is not None:
-            need, configured = est
-            if need < configured:
-                log(f"gpu-mem: recipe asks {configured:.2f} but needs ~{need:.2f}; "
-                    f"capping with --gpu-mem {need:.2f}")
-                run_cmd += ["--gpu-mem", f"{need:.2f}"]
-            else:
-                log(f"gpu-mem: recipe value {configured:.2f} <= required ~{need:.2f}; "
-                    f"using recipe value")
+        # Always run with a fixed GPU memory fraction so the eval harnesses
+        # keep enough unified memory to survive (avoids earlyoom).
+        run_cmd = [self.sparkrun, "run", self.recipe.ref, "--ensure", "--no-follow",
+                   "--gpu-mem", "0.85"]
         log(f"Launching workload: {' '.join(run_cmd[1:])}")
         deadline = time.monotonic() + timeout
         last_note = 0.0

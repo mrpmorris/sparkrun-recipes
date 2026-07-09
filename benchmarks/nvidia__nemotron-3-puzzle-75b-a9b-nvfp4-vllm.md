@@ -1,6 +1,6 @@
 # nvidia__nemotron-3-puzzle-75b-a9b-nvfp4-vllm.yaml benchmark results
 
-Generated UTC: 2026-07-08T15:00:18.656449+00:00
+Generated UTC: 2026-07-09T01:01:46.730346+00:00
 
 ## Run
 
@@ -14,9 +14,9 @@ Generated UTC: 2026-07-08T15:00:18.656449+00:00
 | Base URL | http://127.0.0.1:8000/v1 |
 | Host | Linux 6.17.0-1026-nvidia aarch64 GNU/Linux |
 | GPU | NVIDIA GB10 |
-| Output dir | /home/mrpmorris/sparkrun-recipes/bench-results/nvidia__nemotron-3-puzzle-75b-a9b-nvfp4-vllm.yaml/20260708-134721 |
+| Output dir | /home/mrpmorris/sparkrun-recipes/bench-results/nvidia__nemotron-3-puzzle-75b-a9b-nvfp4-vllm.yaml/20260708-231740 |
 | Command | /home/mrpmorris/sparkrun-recipes/benchllm.py --recipe /home/mrpmorris/sparkrun-recipes/nvidia__nemotron-3-puzzle-75b-a9b-nvfp4-vllm.yaml --cleanup |
-| Total duration | 4377 s |
+| Total duration | 6246 s |
 
 ## Recipe settings
 
@@ -38,13 +38,19 @@ TTFT = time to first token. TPOT = time per output token (mean inter-token laten
 
 ## Intelligence (lm-eval)
 
-2 task(s) completed, 4 failed.
+6 task(s) completed, 0 failed.
 
 | Task | Description | Metric | Value | Stderr | Samples |
 | --- | --- | --- | --- | --- | --- |
-| mmlu | General knowledge across 57 academic subjects | acc,none | 0.8351 | 0.0150 |  |
-| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,strict-match | 0.9174 | 0.0076 | 1319 |
-| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,flexible-extract | 0.9212 | 0.0074 | 1319 |
+| mmlu | General knowledge across 57 academic subjects | acc,none | 0.8404 | 0.0149 |  |
+| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,strict-match | 0.9272 | 0.0072 | 1319 |
+| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,flexible-extract | 0.9303 | 0.0070 | 1319 |
+| arc_challenge | Hard science exam questions (reasoning) | acc,none | 0.6075 | 0.0143 | 1172 |
+| arc_challenge | Hard science exam questions (reasoning) | acc_norm,none | 0.6416 | 0.0140 | 1172 |
+| hellaswag | Commonsense sentence completion | acc,none | 0.5400 | 0.0501 | 100 |
+| hellaswag | Commonsense sentence completion | acc_norm,none | 0.7200 | 0.0451 | 100 |
+| humaneval | Coding: write Python functions that pass unit tests | pass@1,create_test | 0.4634 | 0.0391 | 164 |
+| mbpp | Coding: basic Python programming problems, graded by unit tests | pass_at_1,none | 0.7800 | 0.0185 | 500 |
 
 ## Tool calling (BFCL v4 via EvalScope)
 
@@ -52,35 +58,23 @@ Berkeley Function Calling Leaderboard v4 — exercises the recipe's real tool-ca
 
 | Subset / Category | Score | Samples |
 | --- | --- | --- |
-| NVIDIA-Nemotron-Labs-3-Puzzle-75B-A9B-NVFP4@bfcl_v4 | 0.6571 |  |
-| acc | 0.6571 | 175 |
-| irrelevance | 0.8400 | 25 |
+| NVIDIA-Nemotron-Labs-3-Puzzle-75B-A9B-NVFP4@bfcl_v4 | 0.6971 |  |
+| acc | 0.6971 | 175 |
+| irrelevance | 0.9600 | 25 |
 | live_multiple | 0.6400 | 25 |
-| live_simple | 1.0000 | 25 |
+| live_simple | 0.9200 | 25 |
 | multiple | 0.9200 | 25 |
-| parallel | 0.0000 | 25 |
-| parallel_multiple | 0.2400 | 25 |
-| simple_python | 0.9600 | 25 |
-| NON_LIVE | 0.5300 | 100 |
-| LIVE | 0.8200 | 50 |
-| HALLUCINATION | 0.8400 | 25 |
-| OVERALL | 0.2190 | 175 |
-
-### Failed benchmarks
-
-These benchmarks could not complete as the model is currently served — a failure here is itself a result: the model/config could not perform this evaluation. Multiple-choice tasks (acc / acc_norm) request token log-probabilities from the inference server; generative tasks do not.
-
-| Task | Description | Reason | Log |
-| --- | --- | --- | --- |
-| arc_challenge | Hard science exam questions (reasoning) | HTTP 500 from inference server: EngineCore encountered an issue. See stack trace (above) for the root cause. | lm-eval-arc_challenge.log |
-| hellaswag | Commonsense sentence completion | skipped: server stopped generating (wedged after arc_challenge) |  |
-| humaneval | Coding: write Python functions that pass unit tests | skipped: server stopped generating (wedged after arc_challenge) |  |
-| mbpp | Coding: basic Python programming problems, graded by unit tests | skipped: server stopped generating (wedged after arc_challenge) |  |
+| parallel | 0.2000 | 25 |
+| parallel_multiple | 0.3200 | 25 |
+| simple_python | 0.9200 | 25 |
+| NON_LIVE | 0.5900 | 100 |
+| LIVE | 0.7800 | 50 |
+| HALLUCINATION | 0.9600 | 25 |
+| OVERALL | 0.2330 | 175 |
 
 ## Warnings
 
 - lm-eval ran with sample limits (default 100, per task/subtask; tasks: mmlu:10,gsm8k:0,arc_challenge:0,hellaswag,humaneval:0,mbpp:0); scores are comparative samples, not full-benchmark numbers.
-- Server stopped generating after arc_challenge; remaining eval tasks skipped: hellaswag, humaneval:0, mbpp:0.
 - Top prompt rung capped at 259267 tokens (max length 262144 minus 256 output tokens and 2621 tokenizer-skew margin).
-- Speed point 256 tokens failed: ConnectionError: HTTPConnectionPool(host='127.0.0.1', port=8000): Max retries exceeded with url: /v1/chat/completions (Caused by NewConnectionError("HTTPConnection(host='127.0.0.1', port=8000): Failed to establish a new connection: [Errno 111] Connection refused"))
+- Speed point 256 tokens failed: TypeError: unsupported format string passed to NoneType.__format__
 - Speed ladder stopped after the 256-token failure; skipped larger rungs: [1024, 4096, 16384, 65536, 259267].

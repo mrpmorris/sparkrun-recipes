@@ -1,6 +1,6 @@
 # qwen__qwen3.6-27b-fp8-mtp-atlas.yaml benchmark results
 
-Generated UTC: 2026-07-08T17:49:47.515373+00:00
+Generated UTC: 2026-07-09T02:06:13.029236+00:00
 
 ## Status: FAILED
 
