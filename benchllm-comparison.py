@@ -19,6 +19,7 @@ import numpy as np
 import pandas as pd
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.patches import ConnectionPatch
 from PIL import Image
 
 
@@ -532,28 +533,34 @@ def build_line_figure(
         if positions[-1] > hi:
             positions = [p - (positions[-1] - hi) for p in positions]
 
+        label_x = 1.015
         for (benchmark, point_x, point_y, color, _frac), label_y in zip(
             items, positions
         ):
-            ax.annotate(
+            # Leader ends exactly at the label's left-centre anchor (no bbox
+            # shrink), so it always meets the very left of the name.
+            leader = ConnectionPatch(
+                xyA=(point_x, point_y),
+                coordsA=ax.transData,
+                xyB=(label_x, label_y),
+                coordsB=ax.transAxes,
+                color=color,
+                lw=0.7,
+                alpha=0.6,
+                zorder=2.5,
+            )
+            leader.set_clip_on(False)
+            ax.add_artist(leader)
+            ax.text(
+                label_x,
+                label_y,
                 benchmark,
-                xy=(point_x, point_y),
-                xycoords="data",
-                xytext=(1.015, label_y),
-                textcoords="axes fraction",
+                transform=ax.transAxes,
                 va="center",
                 ha="left",
                 fontsize=9,
                 color=color,
-                arrowprops={
-                    "arrowstyle": "-",
-                    "lw": 0.7,
-                    "color": color,
-                    "alpha": 0.6,
-                    "shrinkA": 0,
-                    "shrinkB": 2,
-                },
-                annotation_clip=False,
+                clip_on=False,
             )
 
     return fig
