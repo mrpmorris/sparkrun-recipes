@@ -612,8 +612,9 @@ def run_speed_point(base_url: str, model: str, size: int, concurrency: int,
             "aggregate_tok_s": (total_out / wall) if wall > 0 else None,
             "wall_s": wall,
         })
-        log(f"  ok={point['ok']} failed={point['failed']} "
-            f"ttft_mean={point['ttft_mean_s']:.3f}s agg={point['aggregate_tok_s']:.1f} tok/s")
+        ttft_txt = f"{point['ttft_mean_s']:.3f}s" if point['ttft_mean_s'] is not None else "n/a"
+        agg_txt = f"{point['aggregate_tok_s']:.1f}" if point['aggregate_tok_s'] is not None else "n/a"
+        log(f"  ok={point['ok']} failed={point['failed']} ttft_mean={ttft_txt} agg={agg_txt} tok/s")
     else:
         log(f"  ALL {concurrency} requests failed: {errors[:1]}")
     (outdir / f"speed-{size}tok-c{concurrency}.json").write_text(json.dumps(point, indent=2))
@@ -812,7 +813,7 @@ def run_lm_eval_task(task: str, base_url: str, model: str, tokenizer: str, limit
         f"tokenizer={tokenizer},"
         f"base_url={base_url}/completions,"
         f"num_concurrent={concurrency},"
-        f"max_retries=3,"
+        f"max_retries=8,"
         f"max_length=8192,"
         f"tokenized_requests=False"
     )
