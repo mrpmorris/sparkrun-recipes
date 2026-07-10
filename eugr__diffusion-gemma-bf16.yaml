@@ -1,0 +1,27 @@
+recipe_version: '1'
+model: google/diffusiongemma-26B-A4B-it
+runtime: vllm-distributed
+builder: eugr
+max_nodes: 1
+container: vllm-node
+solo_only: true
+metadata:
+  description: vLLM serving DiffusionGemma-4-26B-A4B-IT in BF16 on a single node
+mods:
+- mods/diffusiongemma
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  gpu_memory_utilization: 0.8
+  max_model_len: 262144
+  max_num_seqs: 10
+command: "vllm serve google/diffusiongemma-26B-A4B-it \\\n  --max-model-len {max_model_len}\
+  \ \\\n  --gpu-memory-utilization {gpu_memory_utilization} \\\n  --port {port} \\\
+  \n  --host {host} \\\n  --trust-remote-code \\\n  --enable-auto-tool-choice \\\n\
+  \  --tool-call-parser gemma4 \\\n  --load-format fastsafetensors \\\n  --attention-backend\
+  \ TRITON_ATTN \\\n  --max-num-seqs {max_num_seqs} \\\n  --enable-prefix-caching\
+  \ \\\n  --diffusion-config '{\"canvas_length\":256}' \\\n  --override-generation-config\
+  \ '{\"max_new_tokens\": null}' \\\n  --reasoning-parser gemma4 \\\n  --default-chat-template-kwargs\
+  \ '{\"enable_thinking\": false}' \\\n  --chat-template fixed_chat_template.jinja\
+  \ \\\n  --moe-backend triton \n"
+
