@@ -65,17 +65,6 @@ if [[ "$SKIP_BFCL" == "0" ]]; then
   export BENCHLLM_BFCL_PYTHON="$VENV_BFCL/bin/python"
 fi
 
-"$VENV/bin/python" "$SCRIPT_DIR/benchllm.py" "$@"
-rc=$?
-
-# --- Comparison PDF ---------------------------------------------------------
-echo
-echo "benchllm: generating comparison PDF..."
-if "$VENV/bin/python" "$SCRIPT_DIR/benchllm-comparison.py" \
-     --input-dir "$SCRIPT_DIR/benchmarks" --output "$SCRIPT_DIR/benchmarks/_Comparison.pdf"; then
-  echo "benchllm: wrote $SCRIPT_DIR/benchmarks/_Comparison.pdf"
-else
-  echo "benchllm: WARNING - comparison PDF generation failed" >&2
-fi
-
-exit $rc
+# The comparison PDF is no longer generated here; run ./generate-comparison.sh
+# to build benchmarks/_Comparison.pdf on demand.
+exec "$VENV/bin/python" "$SCRIPT_DIR/benchllm.py" "$@"

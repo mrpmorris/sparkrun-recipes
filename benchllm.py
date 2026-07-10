@@ -128,6 +128,12 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--skip-run", action="store_true",
                    help="Don't launch or stop the model; benchmark an instance you started yourself "
                         "(e.g. with `sparkrun run <recipe> -o speculative_config=''`)")
+    p.add_argument("--gpu-mem", type=float, default=0.75,
+                   help="GPU memory fraction passed to sparkrun run --gpu-mem (default 0.75; "
+                        "keeps headroom for eval harnesses and diffusion activation buffers)")
+    p.add_argument("--max-restarts", type=int, default=2,
+                   help="How many times a server that dies mid-run (e.g. GPU OOM) is restarted "
+                        "before the remaining phases are skipped (default 2)")
     return p.parse_args()
 
 
@@ -223,10 +229,12 @@ def cleanup_downloaded_models(preexisting: set) -> None:
 class Workload:
     """Starts the recipe with sparkrun and guarantees it is stopped on exit."""
 
-    def __init__(self, sparkrun: str, recipe: Recipe, log_path: Path):
+    def __init__(self, sparkrun: str, recipe: Recipe, log_path: Path,
+                 gpu_mem: float = 0.75):
         self.sparkrun = sparkrun
         self.recipe = recipe
         self.log_path = log_path
+        self.gpu_mem = gpu_mem
         self.stopped = False
         self.follower = None       # background `sparkrun logs` follower (Popen)
         self._follow_file = None
@@ -238,7 +246,7 @@ class Workload:
         # Always run with a fixed GPU memory fraction so the eval harnesses
         # keep enough unified memory to survive (avoids earlyoom).
         run_cmd = [self.sparkrun, "run", self.recipe.ref, "--ensure", "--no-follow",
-                   "--gpu-mem", "0.85"]
+                   "--gpu-mem", str(self.gpu_mem)]
         log(f"Launching workload: {' '.join(run_cmd[1:])}")
         deadline = time.monotonic() + timeout
         last_note = 0.0
@@ -318,6 +326,14 @@ class Workload:
                 )
         except Exception as exc:  # noqa: BLE001 - best-effort cleanup
             log(f"WARN: sparkrun stop failed: {exc}")
+
+    def restart(self, timeout: int = 1800) -> None:
+        """Stop and relaunch the workload (used after a mid-run server death,
+        e.g. GPU OOM). Weights are already cached, so a shorter timeout applies.
+        Raises StartupError if the relaunch fails."""
+        self.stop()
+        self.stopped = False
+        self.start(timeout=timeout)
 
 
 def probe_server_max_len(base_url: str):
@@ -693,6 +709,81 @@ def server_generates(base_url: str, model: str, timeout: int = 45) -> bool:
         return resp.status_code == 200
     except Exception:  # noqa: BLE001
         return False
+
+
+# OOM-kill signatures in syslog. NV_ERR_NO_MEMORY is the NVIDIA driver failing a
+# GPU/unified-memory allocation (how the diffusion-gemma servers died); the rest
+# are the kernel OOM killer.
+_OOM_KILL_PATTERNS = ("NV_ERR_NO_MEMORY", "Out of memory", "oom-kill", "Killed process")
+
+
+def recent_oom_events(since: dt.datetime, syslog: str = "/var/log/syslog") -> list[str]:
+    """Syslog lines newer than `since` (tz-aware) that show an out-of-memory kill:
+    NVIDIA driver NV_ERR_NO_MEMORY, kernel OOM-killer activity, or an earlyoom
+    SIGTERM/SIGKILL. earlyoom also logs a harmless "mem avail" heartbeat every
+    second - only its kill lines count."""
+    try:
+        with open(syslog, "rb") as f:
+            f.seek(0, os.SEEK_END)
+            f.seek(max(0, f.tell() - 2_000_000))
+            text = f.read().decode("utf-8", errors="replace")
+    except OSError:
+        return []
+    hits = []
+    for line in text.splitlines():
+        interesting = any(p in line for p in _OOM_KILL_PATTERNS) or (
+            "earlyoom" in line and ("SIGTERM" in line or "SIGKILL" in line))
+        if not interesting:
+            continue
+        try:
+            ts = dt.datetime.fromisoformat(line.split(None, 1)[0])
+        except (ValueError, IndexError):
+            continue
+        if ts.tzinfo is not None and ts >= since:
+            hits.append(line.strip())
+    return hits
+
+
+def revive_server(workload: Workload, base_url: str, served: str, phase: str,
+                  warnings: list, state: dict, follow_dest: Path,
+                  max_restarts: int, can_restart: bool) -> tuple[str, str]:
+    """Probe the server; if it no longer generates, classify the death (OOM vs
+    unknown) from syslog and try to relaunch it. Returns (status, marker) where
+    status is "alive" | "restarted" | "dead" and marker describes the death
+    ("" when alive). Restarts are capped at max_restarts per run."""
+    if server_generates(base_url, served):
+        state["last_alive"] = dt.datetime.now(dt.timezone.utc)
+        return "alive", ""
+    since = state["last_alive"] - dt.timedelta(seconds=60)
+    oom = recent_oom_events(since)
+    if oom:
+        marker = f"server OOM ({oom[-1][-200:]})"
+    else:
+        marker = "server stopped generating (no OOM event in syslog; crashed or wedged)"
+    log(f"Server is down ({phase}): {marker}")
+    used = state.get("restarts", 0)
+    if not can_restart:
+        warnings.append(f"{marker} ({phase}); --skip-run set, cannot restart.")
+        return "dead", marker
+    if used >= max_restarts:
+        warnings.append(f"{marker} ({phase}); restart budget exhausted "
+                        f"({used}/{max_restarts}).")
+        return "dead", marker
+    state["restarts"] = used + 1
+    log(f"Restarting server (restart {used + 1}/{max_restarts})...")
+    try:
+        workload.restart()
+        wait_for_ready(base_url, 1800)
+        warmup(base_url, served)
+        workload.follow_logs(follow_dest)
+    except (StartupError, requests.RequestException) as exc:
+        warnings.append(f"{marker} ({phase}); restart {used + 1}/{max_restarts} "
+                        f"failed: {exc}")
+        return "dead", marker
+    warnings.append(f"{marker} ({phase}); server restarted "
+                    f"({used + 1}/{max_restarts}).")
+    state["last_alive"] = dt.datetime.now(dt.timezone.utc)
+    return "restarted", marker
 
 
 def probe_loglikelihood_support(base_url: str, model: str) -> bool:
@@ -1168,7 +1259,10 @@ def main() -> None:
                 "models downloaded for this run will be deleted at exit.")
             atexit.register(cleanup_downloaded_models, preexisting_models)
 
-    workload = Workload(sparkrun, rec, outdir / "sparkrun.log")
+    workload = Workload(sparkrun, rec, outdir / "sparkrun.log", gpu_mem=args.gpu_mem)
+    follow_dest = outdir / "serve-follow.log"
+    # Shared state for the mid-run death detector/restarter (revive_server).
+    revive_state = {"last_alive": dt.datetime.now(dt.timezone.utc), "restarts": 0}
     try:
         if args.skip_run:
             log("--skip-run: benchmarking an externally-managed instance (won't launch or stop it).")
@@ -1186,8 +1280,9 @@ def main() -> None:
         elif report_path.exists():
             log(f"Startup failed; preserving existing report: {report_path}")
         sys.exit(1)
-    workload.follow_logs(outdir / "serve-follow.log")
+    workload.follow_logs(follow_dest)
     warmup(base_url, served)
+    revive_state["last_alive"] = dt.datetime.now(dt.timezone.utc)
 
     # Trust the running server over the recipe: registry recipes often omit
     # max_model_len, and the ladder must not exceed the real context window.
@@ -1205,11 +1300,21 @@ def main() -> None:
     eval_rows = None
     eval_failures: list[dict] = []
     bfcl_rows = None
+
+    def revive(phase: str) -> tuple[str, str]:
+        """Probe/restart the server after a failure (see revive_server)."""
+        return revive_server(workload, base_url, served, phase, warnings,
+                             revive_state, follow_dest, args.max_restarts,
+                             can_restart=not args.skip_run)
+
     try:
         if not args.skip_bfcl:
             subsets = [s.strip() for s in args.bfcl_subsets.split(",") if s.strip()]
             bfcl_rows, bfcl_err = run_bfcl(base_url, served, subsets, args.bfcl_limit, outdir)
             if bfcl_err:
+                _, marker = revive("bfcl")
+                if marker:
+                    bfcl_err["reason"] = f"{marker}; {bfcl_err['reason']}"[:400]
                 eval_failures.append(bfcl_err)
                 log(f"  FAILED bfcl: {bfcl_err['reason']}")
         if not args.skip_eval:
@@ -1234,29 +1339,59 @@ def main() -> None:
                                   "(required for loglikelihood scoring of multiple-choice tasks)",
                         "description": TASK_DESCRIPTIONS.get(task, "")})
                     continue
+                # Don't hand lm-eval a dead server (it would burn minutes of
+                # retries): probe first, restarting if an earlier phase killed it.
+                status, marker = revive(f"before {task}")
+                if status == "dead":
+                    remaining = specs[specs.index(spec):]
+                    warnings.append(f"Server down before {task} ({marker}); "
+                                    f"eval tasks skipped: {', '.join(remaining)}.")
+                    for rspec in remaining:
+                        rtask = rspec.partition(":")[0]
+                        eval_failures.append({
+                            "task": rtask, "log": "",
+                            "reason": f"skipped: {marker}"[:400],
+                            "description": TASK_DESCRIPTIONS.get(rtask, "")})
+                    break
                 rows, err = run_lm_eval_task(task, base_url, served, tokenizer_id or served,
                                              limit, args.eval_concurrency, outdir)
                 eval_rows += rows
                 if err:
+                    # Did the task fail because the server died under it (e.g.
+                    # GPU OOM)? If so restart the server, mark this task as
+                    # OOM-skipped (no retry), and carry on with the next task.
+                    status, marker = revive(f"during {task}")
+                    if status == "restarted":
+                        err["reason"] = (f"{marker}; server restarted, "
+                                         f"task skipped")[:400]
+                    elif status == "dead":
+                        err["reason"] = f"{marker}; {err['reason']}"[:400]
                     eval_failures.append(err)
                     log(f"  FAILED {task}: {err['reason']}")
-                    # A wedged server would make every remaining task burn its
-                    # watchdog budget too - check it can still generate at all.
-                    if not server_generates(base_url, served):
+                    if status == "dead":
                         remaining = specs[specs.index(spec) + 1:]
                         warnings.append(
-                            f"Server stopped generating after {task}; "
+                            f"Server died during {task} and could not be restarted; "
                             f"remaining eval tasks skipped: {', '.join(remaining) or 'none'}.")
                         for rspec in remaining:
                             rtask = rspec.partition(":")[0]
                             eval_failures.append({
                                 "task": rtask, "log": "",
-                                "reason": "skipped: server stopped generating "
-                                          f"(wedged after {task})",
+                                "reason": f"skipped: {marker}"[:400],
                                 "description": TASK_DESCRIPTIONS.get(rtask, "")})
                         break
 
-        if not args.skip_speed:
+        if args.skip_speed:
+            ladder_points, reuse_note = load_previous_speed(
+                SCRIPT_DIR / "bench-results" / rec.results_name, outdir)
+            if reuse_note:
+                warnings.append(reuse_note)
+        # Make sure the speed ladder starts against a live server (an earlier
+        # phase may have OOM'd it); if it can't be revived, skip the phase.
+        elif revive("before speed")[0] == "dead":
+            warnings.append("Speed benchmark skipped: server down and not restartable.")
+            ladder_points = []
+        else:
             sizes, ladder_warnings = prompt_ladder(args.max_prompt, max_model_len,
                                                    args.output_tokens, args.steps)
             warnings += ladder_warnings
@@ -1276,18 +1411,20 @@ def main() -> None:
                          "errors": [f"{type(exc).__name__}: {exc}"]}
                 ladder_points.append(p)
                 if p["failed"]:
+                    # Label the failure with an OOM marker when syslog shows the
+                    # server was OOM-killed under this rung.
+                    oom = recent_oom_events(
+                        revive_state["last_alive"] - dt.timedelta(seconds=60))
+                    cause = f" (server OOM: {oom[-1][-150:]})" if oom else ""
                     warnings.append(
-                        f"Speed point {p['target_tokens']} tokens failed: {'; '.join(p['errors'])}")
+                        f"Speed point {p['target_tokens']} tokens failed{cause}: "
+                        f"{'; '.join(p['errors'])}")
                     remaining = sizes[i + 1:]
                     if remaining:
                         warnings.append(f"Speed ladder stopped after the {size}-token "
                                         f"failure; skipped larger rungs: {remaining}.")
                     break
-        else:
-            ladder_points, reuse_note = load_previous_speed(
-                SCRIPT_DIR / "bench-results" / rec.results_name, outdir)
-            if reuse_note:
-                warnings.append(reuse_note)
+                revive_state["last_alive"] = dt.datetime.now(dt.timezone.utc)
 
     finally:
         if not args.skip_run:

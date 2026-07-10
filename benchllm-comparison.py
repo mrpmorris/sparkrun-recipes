@@ -496,7 +496,13 @@ def build_line_figure(
     ax.set_ylabel(y_label)
     ax.set_title(title)
     if y_tick_step and not log_y:
-        ax.yaxis.set_major_locator(MultipleLocator(y_tick_step))
+        # A fixed tick step over a huge data range (e.g. bogus tok/s values
+        # when a diffusion model reports near-zero TPOT) makes matplotlib
+        # grind on ~1M ticks at 100% CPU and tens of GB of RAM. Only use the
+        # fixed step when it yields a sane number of ticks.
+        lo, hi = ax.get_ylim()
+        if (hi - lo) / y_tick_step <= 400:
+            ax.yaxis.set_major_locator(MultipleLocator(y_tick_step))
     ax.grid(True, which="both", axis="both")
     ax.set_xlim(min(x_values) * 0.85, max_x * 1.05)
 
