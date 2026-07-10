@@ -5,7 +5,6 @@ import argparse
 import json
 import os
 import re
-import statistics
 import textwrap
 from pathlib import Path
 from urllib.parse import quote
@@ -474,46 +473,73 @@ def build_line_figure(
     margin_top, margin_bottom = 0.94, 0.09
     fig.subplots_adjust(left=0.05, right=0.74, top=margin_top, bottom=margin_bottom)
 
-    # List the model names in a column to the right of the plot: ordered by
-    # final value (highest at the top), stacked at normal line spacing, and
-    # each joined to its series' last data point by a thin colour-matched
-    # leader line.
+    # List the model names in a column to the right of the plot. Each name sits
+    # at the same height as its series' last data point; only where names would
+    # collide are they merged into a stack centred on the group's mean height.
+    # A thin colour-matched leader line joins each name to its last data point.
     if label_points:
-        label_points.sort(key=lambda item: item[2], reverse=True)
         n = len(label_points)
 
         # Axes-fraction height of each series' last data point (handles the
         # log/linear y-axis transparently via the finalised transforms).
         fig.canvas.draw()
         inv_axes = ax.transAxes.inverted()
-        target_fracs = [
-            float(inv_axes.transform(ax.transData.transform((px, py)))[1])
-            for _bm, px, py, _color in label_points
+        items = [
+            (bm, px, py, color,
+             float(inv_axes.transform(ax.transData.transform((px, py)))[1]))
+            for bm, px, py, color in label_points
         ]
+        # Work bottom-to-top so stacking preserves the lines' vertical order.
+        items.sort(key=lambda it: it[4])
 
-        # One text line high (points -> axes fraction), shrinking only if the
-        # whole stack would not otherwise fit in the plot height.
+        # Minimum gap between two names = one text line (points -> axes
+        # fraction), shrinking only if every name landed in one stack that
+        # could not otherwise fit the plot height.
         axis_height_in = fig.get_figheight() * (margin_top - margin_bottom)
         spacing = (9 * 1.35 / 72.0) / axis_height_in
         lo, hi = 0.01, 0.99
         if n > 1 and spacing * (n - 1) > (hi - lo):
             spacing = (hi - lo) / (n - 1)
 
-        # Slide the compact block to the offset that minimises total leader
-        # length: label i wants block_top = target_i + i*spacing, and the
-        # median of those values minimises the sum of absolute errors.
-        block_top = statistics.median(
-            [t + i * spacing for i, t in enumerate(target_fracs)]
-        )
-        block_top = min(block_top, hi)
-        block_top = max(block_top, lo + spacing * (n - 1))
+        # Greedily merge overlapping names into groups. Each group is stored as
+        # [sum_of_ideal_heights, count]; two adjacent groups overlap when their
+        # centres are closer than half their combined heights, and a merged
+        # group re-centres on the mean ideal height of all its members.
+        groups: list[list[float]] = []
+        for _bm, _px, _py, _color, frac in items:
+            groups.append([frac, 1])
+            while len(groups) >= 2:
+                lower_c = groups[-2][0] / groups[-2][1]
+                upper_c = groups[-1][0] / groups[-1][1]
+                min_sep = (groups[-2][1] + groups[-1][1]) / 2 * spacing
+                if upper_c - lower_c < min_sep:
+                    s = groups[-2][0] + groups[-1][0]
+                    k = groups[-2][1] + groups[-1][1]
+                    groups[-2:] = [[s, k]]
+                else:
+                    break
 
-        for i, (benchmark, point_x, point_y, color) in enumerate(label_points):
+        # Expand groups back into a label position per item (bottom-to-top).
+        positions: list[float] = []
+        for s, k in groups:
+            center = s / k
+            start = center - (k - 1) / 2 * spacing
+            positions.extend(start + j * spacing for j in range(int(k)))
+
+        # Keep the whole column inside the plot height.
+        if positions[0] < lo:
+            positions = [p + (lo - positions[0]) for p in positions]
+        if positions[-1] > hi:
+            positions = [p - (positions[-1] - hi) for p in positions]
+
+        for (benchmark, point_x, point_y, color, _frac), label_y in zip(
+            items, positions
+        ):
             ax.annotate(
                 benchmark,
                 xy=(point_x, point_y),
                 xycoords="data",
-                xytext=(1.015, block_top - i * spacing),
+                xytext=(1.015, label_y),
                 textcoords="axes fraction",
                 va="center",
                 ha="left",
