@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import re
+import statistics
 import textwrap
 from pathlib import Path
 from urllib.parse import quote
@@ -467,24 +468,52 @@ def build_line_figure(
     ax.grid(True, which="both", axis="both")
     ax.set_xlim(min(x_values) * 0.85, max_x * 1.05)
 
-    # List the model names down a dedicated column to the right of the plot,
-    # in the same vertical order as their final data points, spaced evenly so
-    # they never overlap however many models there are. A thin leader line
-    # joins each label to the last data point of its series.
+    # Reserve room on the right for the label column (the longest recipe names
+    # run ~50 characters). Fix the axes box first so the transforms below are
+    # final before we measure where each line ends.
+    margin_top, margin_bottom = 0.94, 0.09
+    fig.subplots_adjust(left=0.05, right=0.74, top=margin_top, bottom=margin_bottom)
+
+    # List the model names in a column to the right of the plot: ordered by
+    # final value (highest at the top), stacked at normal line spacing, and
+    # each joined to its series' last data point by a thin colour-matched
+    # leader line.
     if label_points:
-        # Highest final value at the top, matching how the eye reads the lines.
         label_points.sort(key=lambda item: item[2], reverse=True)
         n = len(label_points)
-        # Even slots within the axes' vertical span, in axes-fraction coords.
-        top, bottom = 0.985, 0.015
-        step = (top - bottom) / n
+
+        # Axes-fraction height of each series' last data point (handles the
+        # log/linear y-axis transparently via the finalised transforms).
+        fig.canvas.draw()
+        inv_axes = ax.transAxes.inverted()
+        target_fracs = [
+            float(inv_axes.transform(ax.transData.transform((px, py)))[1])
+            for _bm, px, py, _color in label_points
+        ]
+
+        # One text line high (points -> axes fraction), shrinking only if the
+        # whole stack would not otherwise fit in the plot height.
+        axis_height_in = fig.get_figheight() * (margin_top - margin_bottom)
+        spacing = (9 * 1.35 / 72.0) / axis_height_in
+        lo, hi = 0.01, 0.99
+        if n > 1 and spacing * (n - 1) > (hi - lo):
+            spacing = (hi - lo) / (n - 1)
+
+        # Slide the compact block to the offset that minimises total leader
+        # length: label i wants block_top = target_i + i*spacing, and the
+        # median of those values minimises the sum of absolute errors.
+        block_top = statistics.median(
+            [t + i * spacing for i, t in enumerate(target_fracs)]
+        )
+        block_top = min(block_top, hi)
+        block_top = max(block_top, lo + spacing * (n - 1))
+
         for i, (benchmark, point_x, point_y, color) in enumerate(label_points):
-            label_y = top - step * (i + 0.5)
             ax.annotate(
                 benchmark,
                 xy=(point_x, point_y),
                 xycoords="data",
-                xytext=(1.015, label_y),
+                xytext=(1.015, block_top - i * spacing),
                 textcoords="axes fraction",
                 va="center",
                 ha="left",
@@ -501,9 +530,6 @@ def build_line_figure(
                 annotation_clip=False,
             )
 
-    # Reserve room on the right for the label column (the longest recipe names
-    # run ~50 characters); leave the other margins to tight-ish defaults.
-    fig.subplots_adjust(left=0.05, right=0.74, top=0.94, bottom=0.09)
     return fig
 
 
