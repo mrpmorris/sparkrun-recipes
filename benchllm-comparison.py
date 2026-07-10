@@ -414,27 +414,6 @@ def build_intelligence_figure(
     return fig
 
 
-def spread_labels(points: list[list], log_scale: bool) -> list[list]:
-    points = sorted(points, key=lambda row: row[2])
-
-    if not points:
-        return points
-
-    if log_scale:
-        min_ratio = 1.13
-        for i in range(1, len(points)):
-            if points[i][2] / points[i - 1][2] < min_ratio:
-                points[i][2] = points[i - 1][2] * min_ratio
-    else:
-        values = [p[2] for p in points]
-        min_gap = max(values) * 0.025 if max(values) > 0 else 1
-        for i in range(1, len(points)):
-            if points[i][2] - points[i - 1][2] < min_gap:
-                points[i][2] = points[i - 1][2] + min_gap
-
-    return points
-
-
 def build_line_figure(
     speed_df: pd.DataFrame,
     value_col: str,
@@ -442,7 +421,7 @@ def build_line_figure(
     y_label: str,
     log_y: bool,
 ) -> plt.Figure:
-    fig, ax = plt.subplots(figsize=(16, 10))
+    fig, ax = plt.subplots(figsize=(18, 10))
 
     if speed_df.empty:
         ax.text(0.5, 0.5, "No numeric speed rows found", ha="center", va="center")
@@ -462,40 +441,19 @@ def build_line_figure(
     x_values = list(pivot.index)
     max_x = max(x_values)
 
-    for benchmark in pivot.columns:
-        series = pivot[benchmark].dropna()
-        if series.empty:
-            continue
-
-        ax.plot(series.index, series.values, marker="o", linewidth=2)
-
+    # Draw each series, remembering its colour and last data point so the
+    # right-hand label can match and connect to it.
     label_points = []
     for benchmark in pivot.columns:
         series = pivot[benchmark].dropna()
         if series.empty:
             continue
 
+        line = ax.plot(series.index, series.values, marker="o", linewidth=2)[0]
+
         last_x = series.index[-1]
         last_y = float(series.iloc[-1])
-        if last_y <= 0:
-            continue
-
-        label_points.append([benchmark, last_x, last_y, last_y])
-
-    spread_input = [[p[0], p[1], p[2], p[3]] for p in label_points]
-    spread_input = spread_labels(spread_input, log_y)
-
-    label_x = max_x * 1.08
-    for benchmark, point_x, point_y, label_y in spread_input:
-        ax.annotate(
-            benchmark,
-            xy=(point_x, point_y),
-            xytext=(label_x, label_y),
-            va="center",
-            fontsize=9,
-            arrowprops={"arrowstyle": "-", "lw": 0.8},
-            clip_on=False,
-        )
+        label_points.append((benchmark, last_x, last_y, line.get_color()))
 
     ax.set_xscale("log", base=2)
     if log_y:
@@ -507,9 +465,45 @@ def build_line_figure(
     ax.set_ylabel(y_label)
     ax.set_title(title)
     ax.grid(True, which="both", axis="both")
-    ax.set_xlim(min(x_values) * 0.85, max_x * 3.6)
+    ax.set_xlim(min(x_values) * 0.85, max_x * 1.05)
 
-    fig.tight_layout()
+    # List the model names down a dedicated column to the right of the plot,
+    # in the same vertical order as their final data points, spaced evenly so
+    # they never overlap however many models there are. A thin leader line
+    # joins each label to the last data point of its series.
+    if label_points:
+        # Highest final value at the top, matching how the eye reads the lines.
+        label_points.sort(key=lambda item: item[2], reverse=True)
+        n = len(label_points)
+        # Even slots within the axes' vertical span, in axes-fraction coords.
+        top, bottom = 0.985, 0.015
+        step = (top - bottom) / n
+        for i, (benchmark, point_x, point_y, color) in enumerate(label_points):
+            label_y = top - step * (i + 0.5)
+            ax.annotate(
+                benchmark,
+                xy=(point_x, point_y),
+                xycoords="data",
+                xytext=(1.015, label_y),
+                textcoords="axes fraction",
+                va="center",
+                ha="left",
+                fontsize=9,
+                color=color,
+                arrowprops={
+                    "arrowstyle": "-",
+                    "lw": 0.7,
+                    "color": color,
+                    "alpha": 0.6,
+                    "shrinkA": 0,
+                    "shrinkB": 2,
+                },
+                annotation_clip=False,
+            )
+
+    # Reserve room on the right for the label column (the longest recipe names
+    # run ~50 characters); leave the other margins to tight-ish defaults.
+    fig.subplots_adjust(left=0.05, right=0.74, top=0.94, bottom=0.09)
     return fig
 
 
