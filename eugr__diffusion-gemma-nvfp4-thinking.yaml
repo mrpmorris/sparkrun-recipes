@@ -1,0 +1,34 @@
+recipe_version: '1'
+model: nvidia/diffusiongemma-26B-A4B-it-NVFP4
+runtime: vllm-distributed
+builder: eugr
+max_nodes: 1
+container: vllm-node
+solo_only: true
+metadata:
+  description: vLLM serving DiffusionGemma-26B-A4B-IT-NVFP4 with thinking enabled
+    on a single node
+mods:
+- mods/diffusiongemma
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  gpu_memory_utilization: 0.8
+  max_model_len: 262144
+command: |
+  vllm serve nvidia/diffusiongemma-26B-A4B-it-NVFP4 \
+    --max-model-len {max_model_len} \
+    --gpu-memory-utilization {gpu_memory_utilization} \
+    --port {port} \
+    --host {host} \
+    --trust-remote-code \
+    --enable-auto-tool-choice \
+    --tool-call-parser gemma4 \
+    --load-format fastsafetensors \
+    --attention-backend TRITON_ATTN \
+    --enable-prefix-caching \
+    --diffusion-config '{"canvas_length":256}' \
+    --override-generation-config '{"max_new_tokens": null}' \
+    --reasoning-parser gemma4 \
+    --default-chat-template-kwargs '{"enable_thinking": true}'
+
