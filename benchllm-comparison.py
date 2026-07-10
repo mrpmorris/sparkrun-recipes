@@ -20,6 +20,7 @@ import pandas as pd
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.patches import ConnectionPatch
+from matplotlib.ticker import MultipleLocator
 from PIL import Image
 
 
@@ -275,9 +276,17 @@ def wrap_text(value: str, width: int) -> str:
     )
 
 
+def build_color_map(benchmarks: list[str]) -> dict[str, str]:
+    """Stable benchmark -> colour map shared by every figure, so a model's
+    line colour on the speed graphs matches its name colour on page 1."""
+    cycle = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+    return {bm: cycle[i % len(cycle)] for i, bm in enumerate(sorted(benchmarks))}
+
+
 def build_intelligence_figure(
     intel_df: pd.DataFrame,
     cmap: LinearSegmentedColormap,
+    color_map: dict[str, str],
 ) -> plt.Figure:
     df = intel_df.copy()
     df["Mean"] = df[INTEL_METRICS].mean(axis=1)
@@ -338,6 +347,10 @@ def build_intelligence_figure(
     ax.set_xticklabels(plot_cols, rotation=35, ha="right", fontsize=11)
     ax.set_yticks(range(len(plot_df.index)))
     ax.set_yticklabels(plot_df.index, fontsize=10)
+    # Colour each model name to match its line on the speed graphs (models with
+    # no speed data have no line, so they stay black).
+    for label, name in zip(ax.get_yticklabels(), plot_df.index):
+        label.set_color(color_map.get(name, "black"))
 
     ax.set_title("Sparkrun intelligence scores, failures as zero", fontsize=18, pad=16)
     ax.set_xlabel("lm-eval metric", fontsize=12)
@@ -348,6 +361,23 @@ def build_intelligence_figure(
     ax.grid(which="minor", color="black", linewidth=0.45)
     ax.tick_params(which="minor", bottom=False, left=False)
 
+    cbar = fig.colorbar(image, ax=ax, fraction=0.025, pad=0.02)
+    cbar.set_label("Score", fontsize=12)
+    cbar.ax.tick_params(labelsize=10)
+    cbar.set_ticks([0, 0.25, 0.5, 0.75, 1.0])
+    cbar.set_ticklabels(["0 red", "0.25", "0.50", "0.75", "1 green"])
+
+    # Fill each cell with its score, sized so text + a 0.25em border fills the
+    # cell height (uniform scaling keeps the aspect ratio). The border is the
+    # bbox padding, drawn in the cell's own heat-map colour. Measure the final
+    # cell height (after the colorbar has shrunk the axes) to pick the size.
+    fig.canvas.draw()
+    cell_px = abs(
+        ax.transData.transform((0, 1))[1] - ax.transData.transform((0, 0))[1]
+    )
+    cell_pts = cell_px * 72.0 / fig.dpi
+    # box height ~= text(1em) + 2 * 0.25em pad = 1.5em; fill ~95% of the cell.
+    cell_fontsize = max(6.0, cell_pts * 0.95 / 1.5)
     for i in range(values.shape[0]):
         for j in range(values.shape[1]):
             ax.text(
@@ -356,21 +386,14 @@ def build_intelligence_figure(
                 f"{values[i, j]:.2f}",
                 ha="center",
                 va="center",
-                fontsize=8,
+                fontsize=cell_fontsize,
                 color="black",
                 bbox={
-                    "boxstyle": "square,pad=0.18",
-                    "facecolor": "white",
+                    "boxstyle": "square,pad=0.25",
+                    "facecolor": cmap(values[i, j]),
                     "edgecolor": "none",
-                    "alpha": 0.92,
                 },
             )
-
-    cbar = fig.colorbar(image, ax=ax, fraction=0.025, pad=0.02)
-    cbar.set_label("Score", fontsize=12)
-    cbar.ax.tick_params(labelsize=10)
-    cbar.set_ticks([0, 0.25, 0.5, 0.75, 1.0])
-    cbar.set_ticklabels(["0 red", "0.25", "0.50", "0.75", "1 green"])
 
     ax_table = fig.add_subplot(grid[1, 0])
     ax_table.axis("off")
@@ -397,6 +420,10 @@ def build_intelligence_figure(
             cell.set_facecolor("#f2f2f2")
         else:
             cell.set_facecolor("white")
+            # Columns 2..6 hold model names; colour them to match the graphs.
+            if col >= 2:
+                name = table_rows[row - 1][col]
+                cell.set_text_props(color=color_map.get(name, "black"))
 
     ax_note = fig.add_subplot(grid[1, 1])
     ax_note.axis("off")
@@ -421,6 +448,8 @@ def build_line_figure(
     title: str,
     y_label: str,
     log_y: bool,
+    color_map: dict[str, str],
+    y_tick_step: float | None = None,
 ) -> plt.Figure:
     fig, ax = plt.subplots(figsize=(18, 10))
 
@@ -450,11 +479,12 @@ def build_line_figure(
         if series.empty:
             continue
 
-        line = ax.plot(series.index, series.values, marker="o", linewidth=2)[0]
+        color = color_map.get(benchmark)
+        ax.plot(series.index, series.values, marker="o", linewidth=2, color=color)
 
         last_x = series.index[-1]
         last_y = float(series.iloc[-1])
-        label_points.append((benchmark, last_x, last_y, line.get_color()))
+        label_points.append((benchmark, last_x, last_y, color))
 
     ax.set_xscale("log", base=2)
     if log_y:
@@ -465,6 +495,8 @@ def build_line_figure(
     ax.set_xlabel("Prompt tokens")
     ax.set_ylabel(y_label)
     ax.set_title(title)
+    if y_tick_step and not log_y:
+        ax.yaxis.set_major_locator(MultipleLocator(y_tick_step))
     ax.grid(True, which="both", axis="both")
     ax.set_xlim(min(x_values) * 0.85, max_x * 1.05)
 
@@ -614,8 +646,13 @@ def main() -> None:
     intel_df, speed_df = build_dataframes(reports)
     cmap = make_score_cmap(args.gradient)
 
+    speed_names = (
+        sorted(speed_df["benchmark"].unique()) if not speed_df.empty else []
+    )
+    color_map = build_color_map(speed_names)
+
     with PdfPages(args.output) as pdf:
-        fig = build_intelligence_figure(intel_df, cmap)
+        fig = build_intelligence_figure(intel_df, cmap, color_map)
         pdf.savefig(fig, bbox_inches="tight")
         plt.close(fig)
 
@@ -623,8 +660,9 @@ def main() -> None:
             speed_df,
             "ttft_s",
             "Sparkrun benchmark time to first token by prompt size",
-            "TTFT seconds, log scale",
-            log_y=True,
+            "TTFT seconds",
+            log_y=False,
+            color_map=color_map,
         )
         pdf.savefig(fig, bbox_inches="tight")
         plt.close(fig)
@@ -635,6 +673,7 @@ def main() -> None:
             "Sparkrun benchmark TPOT by prompt size",
             "TPOT ms",
             log_y=False,
+            color_map=color_map,
         )
         pdf.savefig(fig, bbox_inches="tight")
         plt.close(fig)
@@ -645,6 +684,8 @@ def main() -> None:
             "Sparkrun benchmark TPS by prompt size",
             "TPS, generation tokens/s",
             log_y=False,
+            color_map=color_map,
+            y_tick_step=5,
         )
         pdf.savefig(fig, bbox_inches="tight")
         plt.close(fig)

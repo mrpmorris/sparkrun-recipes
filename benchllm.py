@@ -1176,6 +1176,9 @@ def main() -> None:
         wait_for_ready(base_url, args.ready_timeout)
     except StartupError as exc:
         log(f"Startup failed: {exc}")
+        if not args.skip_run:
+            (outdir / "serve-startup.log").write_text(read_serve_log(200_000) or "<serve log unavailable>", encoding="utf-8")
+            log(f"Wrote serve startup log: {outdir / 'serve-startup.log'}")
         if not args.skip_run and not report_path.exists():
             write_error_report(report_path, rec.display, rec.ref, str(exc))
             log(f"Wrote failure report: {report_path} (recipe will be skipped on re-runs)")
