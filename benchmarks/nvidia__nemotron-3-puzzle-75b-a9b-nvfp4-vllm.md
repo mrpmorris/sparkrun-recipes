@@ -1,6 +1,6 @@
 # nvidia__nemotron-3-puzzle-75b-a9b-nvfp4-vllm.yaml benchmark results
 
-Generated UTC: 2026-07-09T01:01:46.730346+00:00
+Generated UTC: 2026-07-11T04:50:57.855474+00:00
 
 ## Run
 
@@ -14,9 +14,9 @@ Generated UTC: 2026-07-09T01:01:46.730346+00:00
 | Base URL | http://127.0.0.1:8000/v1 |
 | Host | Linux 6.17.0-1026-nvidia aarch64 GNU/Linux |
 | GPU | NVIDIA GB10 |
-| Output dir | /home/mrpmorris/sparkrun-recipes/bench-results/nvidia__nemotron-3-puzzle-75b-a9b-nvfp4-vllm.yaml/20260708-231740 |
+| Output dir | /home/mrpmorris/sparkrun-recipes/bench-results/nvidia__nemotron-3-puzzle-75b-a9b-nvfp4-vllm.yaml/20260711-030503 |
 | Command | /home/mrpmorris/sparkrun-recipes/benchllm.py --recipe /home/mrpmorris/sparkrun-recipes/nvidia__nemotron-3-puzzle-75b-a9b-nvfp4-vllm.yaml --cleanup |
-| Total duration | 6246 s |
+| Total duration | 6355 s |
 
 ## Recipe settings
 
@@ -32,7 +32,12 @@ Generated UTC: 2026-07-09T01:01:46.730346+00:00
 
 | Prompt tokens | Server prompt tokens | TTFT s | TPOT ms | Prefill tok/s | Generation tok/s | Total s |
 | --- | --- | --- | --- | --- | --- | --- |
-| 256 | | FAILED | | | | |
+| 256 | 277 | 0.264 | 50.9 | 1050.4 | 19.74 | 13.23 |
+| 1024 | 1046 | 0.431 | 50.9 | 2425.6 | 19.73 | 13.41 |
+| 4096 | 4115 | 1.507 | 51.0 | 2730.8 | 19.69 | 14.51 |
+| 16384 | 16406 | 5.924 | 51.3 | 2769.6 | 19.57 | 19.00 |
+| 65536 | 65558 | 25.897 | 52.2 | 2531.5 | 19.25 | 39.20 |
+| 259267 | 259291 | 143.197 | 55.2 | 1810.7 | 18.18 | 157.28 |
 
 TTFT = time to first token. TPOT = time per output token (mean inter-token latency after the first token). Prefill tok/s = prompt tokens / TTFT. Generation tok/s = output tokens per second after the first token.
 
@@ -42,15 +47,15 @@ TTFT = time to first token. TPOT = time per output token (mean inter-token laten
 
 | Task | Description | Metric | Value | Stderr | Samples |
 | --- | --- | --- | --- | --- | --- |
-| mmlu | General knowledge across 57 academic subjects | acc,none | 0.8404 | 0.0149 |  |
-| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,strict-match | 0.9272 | 0.0072 | 1319 |
-| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,flexible-extract | 0.9303 | 0.0070 | 1319 |
-| arc_challenge | Hard science exam questions (reasoning) | acc,none | 0.6075 | 0.0143 | 1172 |
-| arc_challenge | Hard science exam questions (reasoning) | acc_norm,none | 0.6416 | 0.0140 | 1172 |
-| hellaswag | Commonsense sentence completion | acc,none | 0.5400 | 0.0501 | 100 |
+| mmlu | General knowledge across 57 academic subjects | acc,none | 0.8368 | 0.0150 |  |
+| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,strict-match | 0.9212 | 0.0074 | 1319 |
+| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,flexible-extract | 0.9234 | 0.0073 | 1319 |
+| arc_challenge | Hard science exam questions (reasoning) | acc,none | 0.6024 | 0.0143 | 1172 |
+| arc_challenge | Hard science exam questions (reasoning) | acc_norm,none | 0.6425 | 0.0140 | 1172 |
+| hellaswag | Commonsense sentence completion | acc,none | 0.5500 | 0.0500 | 100 |
 | hellaswag | Commonsense sentence completion | acc_norm,none | 0.7200 | 0.0451 | 100 |
-| humaneval | Coding: write Python functions that pass unit tests | pass@1,create_test | 0.4634 | 0.0391 | 164 |
-| mbpp | Coding: basic Python programming problems, graded by unit tests | pass_at_1,none | 0.7800 | 0.0185 | 500 |
+| humaneval | Coding: write Python functions that pass unit tests | pass@1,create_test | 0.4756 | 0.0391 | 164 |
+| mbpp | Coding: basic Python programming problems, graded by unit tests | pass_at_1,none | 0.7920 | 0.0182 | 500 |
 
 ## Tool calling (BFCL v4 via EvalScope)
 
@@ -58,23 +63,21 @@ Berkeley Function Calling Leaderboard v4 — exercises the recipe's real tool-ca
 
 | Subset / Category | Score | Samples |
 | --- | --- | --- |
-| NVIDIA-Nemotron-Labs-3-Puzzle-75B-A9B-NVFP4@bfcl_v4 | 0.6971 |  |
-| acc | 0.6971 | 175 |
-| irrelevance | 0.9600 | 25 |
-| live_multiple | 0.6400 | 25 |
+| NVIDIA-Nemotron-Labs-3-Puzzle-75B-A9B-NVFP4@bfcl_v4 | 0.6457 |  |
+| acc | 0.6457 | 175 |
+| irrelevance | 0.8000 | 25 |
+| live_multiple | 0.6000 | 25 |
 | live_simple | 0.9200 | 25 |
-| multiple | 0.9200 | 25 |
-| parallel | 0.2000 | 25 |
-| parallel_multiple | 0.3200 | 25 |
-| simple_python | 0.9200 | 25 |
-| NON_LIVE | 0.5900 | 100 |
-| LIVE | 0.7800 | 50 |
-| HALLUCINATION | 0.9600 | 25 |
-| OVERALL | 0.2330 | 175 |
+| multiple | 0.9600 | 25 |
+| parallel | 0.0400 | 25 |
+| parallel_multiple | 0.2400 | 25 |
+| simple_python | 0.9600 | 25 |
+| NON_LIVE | 0.5500 | 100 |
+| LIVE | 0.7600 | 50 |
+| HALLUCINATION | 0.8000 | 25 |
+| OVERALL | 0.2110 | 175 |
 
 ## Warnings
 
 - lm-eval ran with sample limits (default 100, per task/subtask; tasks: mmlu:10,gsm8k:0,arc_challenge:0,hellaswag,humaneval:0,mbpp:0); scores are comparative samples, not full-benchmark numbers.
 - Top prompt rung capped at 259267 tokens (max length 262144 minus 256 output tokens and 2621 tokenizer-skew margin).
-- Speed point 256 tokens failed: TypeError: unsupported format string passed to NoneType.__format__
-- Speed ladder stopped after the 256-token failure; skipped larger rungs: [1024, 4096, 16384, 65536, 259267].

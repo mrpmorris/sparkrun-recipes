@@ -1,0 +1,64 @@
+recipe_version: "2"
+model: unsloth/Qwen3.6-35B-A3B-NVFP4
+runtime: atlas
+container: avarok/atlas-gb10:dev
+max_nodes: 1
+
+metadata:
+  description: |
+    Qwen3.6-35B-A3B (unsloth NVFP4) — the DEFAULT 35B recipe. MTP K=2 on
+    a single GB10 with calibrated fp8 KV (128K context lever) and the
+    agentic/tool-calling stack (qwen3_coder parser, tool grammar OFF)
+    that the 27B golden config validated end-to-end.
+
+    Pinned to avarok/atlas-gb10:dev built on/after 2026-07-10T19:18Z (current :dev — the exact gate-verified binary): it
+    carries the SSM snapshot-eviction fix (atlas#287, merged
+    2026-07-10). Without #287, deep multi-turn conversations freeze the
+    warm-restore anchor and replay up to 18.6k tokens/turn through the
+    GDN layers (TTFT tail to 40 s); with it, warm restores replay one
+    block (16 tokens) and TTFT holds llama.cpp parity (validated on the
+    27B golden e2e: median 1403 ms vs llama 1431, TPOT 58 vs 86 ms,
+    1.38x wall on the 1007-turn agentic run, BFCL ST-995 89.59
+    normalized). MoE decode throughput lineage: MTP K=2 measured at
+    126.7 tok/s vs 92.9 no-spec on the 35B NVFP4 A3B family (never
+    raise num_drafts: K=3 measured SLOWER than no MTP).
+
+    Serving params carry over from the gate-validated 35B NVFP4 profile:
+    calibrated fp8 KV (checkpoints ship no k/v scales — calibration is
+    required or Atlas refuses to serve; validated 2026-06-06, quality
+    holds vs bf16 within N=10 noise), kv_high_precision_layers auto,
+    slai scheduling, native bf16 MTP draft head (downcasting lowers
+    acceptance). Tool-calling flags mirror the 27B golden: qwen3_coder
+    with disable_tool_grammar true is mandatory for parallel tool calls.
+    The nvidia-checkpoint variant remains available as
+    qwen3.6-35b-a3b-nvfp4-nvidia.
+  maintainer: avarok
+  category: agent
+  model_params: 35B
+  model_dtype: nvfp4
+  quantization: nvfp4
+  kv_dtype: fp8
+
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  max_model_len: 131072
+  kv_cache_dtype: fp8
+  gpu_memory_utilization: 0.88
+  scheduling_policy: slai
+  speculative: true
+  # bf16 MTP draft head — loading it native maximizes draft acceptance;
+  # nvfp4 head measured -1.3% with no accuracy benefit.
+  mtp_quantization: bf16
+  enable_prefix_caching: true
+  # fp8 KV requires online K/V scale calibration on these checkpoints (no
+  # shipped k/v scales) — without it, bare fp8 KV clips to E4M3 [-448,448]
+  # and Atlas refuses to serve. kv_high_precision_layers auto keeps
+  # sink+output bf16.
+  fp8_kv_calibration_tokens: 256
+  kv_high_precision_layers: auto
+  ssm_cache_slots: 128
+  ssm_checkpoint_interval: 32
+  tool_call_parser: qwen3_coder
+  disable_tool_grammar: true
+  disable_thinking: true

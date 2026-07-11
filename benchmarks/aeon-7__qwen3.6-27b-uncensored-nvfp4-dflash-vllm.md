@@ -1,6 +1,6 @@
 # aeon-7__qwen3.6-27b-uncensored-nvfp4-dflash-vllm.yaml benchmark results
 
-Generated UTC: 2026-07-08T21:52:12.706075+00:00
+Generated UTC: 2026-07-10T23:41:34.748201+00:00
 
 ## Run
 
@@ -14,9 +14,9 @@ Generated UTC: 2026-07-08T21:52:12.706075+00:00
 | Base URL | http://127.0.0.1:8000/v1 |
 | Host | Linux 6.17.0-1026-nvidia aarch64 GNU/Linux |
 | GPU | NVIDIA GB10 |
-| Output dir | /home/mrpmorris/sparkrun-recipes/bench-results/aeon-7__qwen3.6-27b-uncensored-nvfp4-dflash-vllm.yaml/20260708-193940 |
+| Output dir | /home/mrpmorris/sparkrun-recipes/bench-results/aeon-7__qwen3.6-27b-uncensored-nvfp4-dflash-vllm.yaml/20260710-212030 |
 | Command | /home/mrpmorris/sparkrun-recipes/benchllm.py --recipe /home/mrpmorris/sparkrun-recipes/aeon-7__qwen3.6-27b-uncensored-nvfp4-dflash-vllm.yaml --cleanup |
-| Total duration | 7952 s |
+| Total duration | 8464 s |
 
 ## Recipe settings
 
@@ -43,12 +43,12 @@ Generated UTC: 2026-07-08T21:52:12.706075+00:00
 
 | Prompt tokens | Server prompt tokens | TTFT s | TPOT ms | Prefill tok/s | Generation tok/s | Total s |
 | --- | --- | --- | --- | --- | --- | --- |
-| 256 | 271 | 0.213 | 23.4 | 1270.0 | 42.96 | 6.17 |
-| 1024 | 1041 | 0.556 | 24.4 | 1871.6 | 41.09 | 6.79 |
-| 4096 | 4110 | 1.839 | 31.6 | 2234.3 | 31.76 | 9.90 |
-| 16384 | 16398 | 10.109 | 32.6 | 1622.2 | 30.78 | 18.43 |
-| 65536 | 65554 | 46.817 | 44.7 | 1400.2 | 22.46 | 58.22 |
-| 259267 | 259283 | 329.575 | 104.2 | 786.7 | 9.64 | 356.14 |
+| 256 | 270 | 0.229 | 16.9 | 1179.3 | 59.47 | 4.53 |
+| 1024 | 1044 | 0.627 | 15.6 | 1666.3 | 64.18 | 4.62 |
+| 4096 | 4109 | 1.875 | 34.8 | 2191.4 | 28.88 | 10.74 |
+| 16384 | 16402 | 9.095 | 32.3 | 1803.5 | 31.09 | 17.33 |
+| 65536 | 65551 | 44.261 | 46.4 | 1481.0 | 21.66 | 56.08 |
+| 259267 | 259282 | 316.444 | 91.7 | 819.4 | 10.95 | 339.82 |
 
 TTFT = time to first token. TPOT = time per output token (mean inter-token latency after the first token). Prefill tok/s = prompt tokens / TTFT. Generation tok/s = output tokens per second after the first token.
 
@@ -58,15 +58,15 @@ TTFT = time to first token. TPOT = time per output token (mean inter-token laten
 
 | Task | Description | Metric | Value | Stderr | Samples |
 | --- | --- | --- | --- | --- | --- |
-| mmlu | General knowledge across 57 academic subjects | acc,none | 0.7877 | 0.0170 |  |
-| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,strict-match | 0.0682 | 0.0069 | 1319 |
-| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,flexible-extract | 0.0773 | 0.0074 | 1319 |
-| arc_challenge | Hard science exam questions (reasoning) | acc,none | 0.4974 | 0.0146 | 1172 |
-| arc_challenge | Hard science exam questions (reasoning) | acc_norm,none | 0.5162 | 0.0146 | 1172 |
+| mmlu | General knowledge across 57 academic subjects | acc,none | 0.7912 | 0.0170 |  |
+| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,strict-match | 0.0811 | 0.0075 | 1319 |
+| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,flexible-extract | 0.0895 | 0.0079 | 1319 |
+| arc_challenge | Hard science exam questions (reasoning) | acc,none | 0.5102 | 0.0146 | 1172 |
+| arc_challenge | Hard science exam questions (reasoning) | acc_norm,none | 0.5205 | 0.0146 | 1172 |
 | hellaswag | Commonsense sentence completion | acc,none | 0.5600 | 0.0499 | 100 |
-| hellaswag | Commonsense sentence completion | acc_norm,none | 0.7100 | 0.0456 | 100 |
+| hellaswag | Commonsense sentence completion | acc_norm,none | 0.6600 | 0.0476 | 100 |
 | humaneval | Coding: write Python functions that pass unit tests | pass@1,create_test | 0.7622 | 0.0333 | 164 |
-| mbpp | Coding: basic Python programming problems, graded by unit tests | pass_at_1,none | 0.6660 | 0.0211 | 500 |
+| mbpp | Coding: basic Python programming problems, graded by unit tests | pass_at_1,none | 0.6480 | 0.0214 | 500 |
 
 ## Tool calling (BFCL v4 via EvalScope)
 
@@ -74,19 +74,19 @@ Berkeley Function Calling Leaderboard v4 — exercises the recipe's real tool-ca
 
 | Subset / Category | Score | Samples |
 | --- | --- | --- |
-| Qwen3.6-27B@bfcl_v4 | 0.8857 |  |
-| acc | 0.8857 | 175 |
+| Qwen3.6-27B@bfcl_v4 | 0.8514 |  |
+| acc | 0.8514 | 175 |
 | irrelevance | 0.8800 | 25 |
-| live_multiple | 0.7200 | 25 |
-| live_simple | 0.9600 | 25 |
-| multiple | 0.9600 | 25 |
-| parallel | 0.8400 | 25 |
-| parallel_multiple | 0.8800 | 25 |
+| live_multiple | 0.6400 | 25 |
+| live_simple | 0.8800 | 25 |
+| multiple | 0.8800 | 25 |
+| parallel | 0.8000 | 25 |
+| parallel_multiple | 0.9200 | 25 |
 | simple_python | 0.9600 | 25 |
-| NON_LIVE | 0.9100 | 100 |
-| LIVE | 0.8400 | 50 |
+| NON_LIVE | 0.8900 | 100 |
+| LIVE | 0.7600 | 50 |
 | HALLUCINATION | 0.8800 | 25 |
-| OVERALL | 0.2630 | 175 |
+| OVERALL | 0.2530 | 175 |
 
 ## Warnings
 

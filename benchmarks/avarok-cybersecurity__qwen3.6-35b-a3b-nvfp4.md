@@ -1,6 +1,6 @@
-# @eugr/openai-gpt-oss-120b benchmark results
+# avarok-cybersecurity__qwen3.6-35b-a3b-nvfp4.yaml benchmark results
 
-Generated UTC: 2026-07-10T02:29:26.691785+00:00
+Generated UTC: 2026-07-11T03:05:02.186922+00:00
 
 ## Status: FAILED
 
@@ -9,9 +9,9 @@ This recipe could not be benchmarked: the inference server failed to start, so n
 **Error**
 
 ```
-inference server crashed during startup: RuntimeError: Engine core initialization failed. See root cause above. Failed core proc(s): {}
+model endpoint did not become ready in time
 ```
 
-Recipe: `@eugr/openai-gpt-oss-120b`
+Recipe: `/home/mrpmorris/sparkrun-recipes/avarok-cybersecurity__qwen3.6-35b-a3b-nvfp4.yaml`
 
 _This report records the failure so the batch skips this recipe on re-runs. Delete this file or pass --force to retry._
