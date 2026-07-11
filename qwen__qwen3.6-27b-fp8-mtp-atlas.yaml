@@ -17,7 +17,7 @@ command: |
   spark serve {model} \
     --port {port} \
     --host 0.0.0.0 \
-    --max-seq-len 262144 \
+    --max-seq-len 32768 \
     --max-batch-size 4 \
     --kv-cache-dtype fp8 \
     --fp8-kv-calibration-tokens 256 \
