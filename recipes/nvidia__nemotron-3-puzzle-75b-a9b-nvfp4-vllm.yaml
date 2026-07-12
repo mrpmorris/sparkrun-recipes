@@ -1,0 +1,34 @@
+recipe_version: '2'
+model: nvidia/NVIDIA-Nemotron-Labs-3-Puzzle-75B-A9B-NVFP4
+runtime: vllm
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly:latest
+min_nodes: 1
+max_nodes: 1
+metadata:
+  description: "Nemotron-3 Puzzle 75B-A9B NVFP4 on single-node vLLM. Derived from @eugr/nemotron-3-nano-nvfp4 (single-node sibling). UNTESTED: nano-specific mods/nemotron-nano and nano_v3 reasoning-parser plugin intentionally dropped (Nano-only); tool/reasoning parser may need adjusting for Puzzle."
+  maintainer: pmorris
+  category: chat
+  model_params: 75B-A9B
+  model_dtype: nvfp4
+  quantization: modelopt
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  gpu_memory_utilization: 0.8
+  max_model_len: 262144
+command: |
+  vllm serve {model} \
+     --host {host} \
+     --port {port} \
+     --tensor-parallel-size {tensor_parallel} \
+     --moe-backend cutlass \
+     --max-model-len {max_model_len} \
+     --trust-remote-code \
+     --enable-auto-tool-choice \
+     --tool-call-parser qwen3_coder \
+     --kv-cache-dtype fp8 \
+     --enable-prefix-caching \
+     --load-format fastsafetensors \
+     --gpu-memory-utilization {gpu_memory_utilization}
+

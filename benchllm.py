@@ -116,7 +116,15 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--ready-timeout", type=int, default=3600, help="Seconds to wait for the model endpoint (default 3600)")
     p.add_argument("--request-timeout", type=int, default=1800, help="Per-request read timeout in seconds (default 1800)")
     p.add_argument("--seed", type=int, default=0, help="Base seed for prompt generation (default 0)")
-    p.add_argument("--skip-speed", action="store_true", help="Skip the speed benchmark")
+    p.add_argument("--skip-speed", action="store_true", help="Skip the speed-vs-prompt-size benchmark")
+    p.add_argument("--concurrency-levels", default="1,2,4,8,16,32,64",
+                   help="Comma-separated concurrency levels for the concurrency sweep "
+                        "(default 1,2,4,8,16,32,64). A level whose requests fail (e.g. the "
+                        "server's max_num_seqs / --max-batch-size is exceeded) is recorded and "
+                        "the sweep continues to the next level.")
+    p.add_argument("--concurrency-prompt", type=int, default=1024,
+                   help="Prompt size in tokens for the concurrency sweep (default 1024)")
+    p.add_argument("--skip-concurrency", action="store_true", help="Skip the concurrency sweep")
     p.add_argument("--skip-eval", action="store_true", help="Skip the intelligence benchmark")
     p.add_argument("--force", action="store_true",
                    help="Re-run even if the report already exists (default: skip recipes "
@@ -148,8 +156,11 @@ class Recipe:
 
 
 def resolve_recipe(arg: str, sparkrun: str) -> Recipe:
-    """Resolve --recipe: a local file first, then a recipe name known to sparkrun."""
-    for candidate in (Path(arg), SCRIPT_DIR / arg, SCRIPT_DIR / f"{arg}.yaml"):
+    """Resolve --recipe: a local file first (including the recipes/ folder next to
+    this script), then a recipe name known to sparkrun."""
+    for candidate in (Path(arg), SCRIPT_DIR / arg, SCRIPT_DIR / f"{arg}.yaml",
+                      SCRIPT_DIR / "recipes" / arg, SCRIPT_DIR / "recipes" / f"{arg}.yaml",
+                      SCRIPT_DIR / "recipes" / f"{arg}.yml"):
         if candidate.is_file():
             path = candidate.resolve()
             data = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -334,6 +345,40 @@ class Workload:
         self.stop()
         self.stopped = False
         self.start(timeout=timeout)
+
+
+def detect_max_concurrency(recipe: dict, defaults: dict):
+    """Largest number of concurrent sequences the recipe's server will admit.
+
+    The limit is declared as max_num_seqs (vLLM) and/or max_batch_size (atlas),
+    either as a `defaults:` key (usually templated into the command as
+    {max_num_seqs}) or hardcoded inline in the command as --max-num-seqs N /
+    --max-batch-size N. When more than one is present the true admission limit
+    is the smallest. Returns an int, or None when the recipe declares no cap
+    (the server then uses its runtime default)."""
+    candidates: list[int] = []
+
+    def as_int(v):
+        try:
+            return int(str(v).strip())
+        except (TypeError, ValueError):
+            return None
+
+    for key in ("max_num_seqs", "max_batch_size"):
+        n = as_int(defaults.get(key))
+        if n is not None:
+            candidates.append(n)
+
+    command = recipe.get("command") or ""
+    for flag in ("--max-num-seqs", "--max-batch-size"):
+        for m in re.finditer(rf"{flag}\s+(\S+)", command):
+            tok = m.group(1)
+            brace = re.fullmatch(r"\{(\w+)\}", tok)
+            n = as_int(defaults.get(brace.group(1))) if brace else as_int(tok)
+            if n is not None:
+                candidates.append(n)
+
+    return min(candidates) if candidates else None
 
 
 def probe_server_max_len(base_url: str):
@@ -1096,6 +1141,25 @@ def speed_table(points: list[dict]) -> list[str]:
     return lines
 
 
+def concurrency_table(points: list[dict]) -> list[str]:
+    lines = [
+        "| Concurrency | OK | Failed | TTFT p50 s | TTFT p95 s | Per-req gen tok/s | Aggregate tok/s | Wall s |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    for p in points:
+        c = p.get("concurrency")
+        if p["ok"]:
+            lines.append(
+                f"| {c} | {p['ok']} | {p.get('failed', 0)} "
+                f"| {fmt(p.get('ttft_p50_s'))} | {fmt(p.get('ttft_p95_s'))} "
+                f"| {fmt(p.get('decode_tok_s_mean'), 2)} | {fmt(p.get('aggregate_tok_s'), 1)} "
+                f"| {fmt(p.get('wall_s'), 2)} |"
+            )
+        else:
+            lines.append(f"| {c} | 0 | {p.get('failed', '')} | FAILED | | | | |")
+    return lines
+
+
 def host_info() -> dict:
     info = {}
     for key, cmd in {
@@ -1144,6 +1208,28 @@ def write_report(report_path: Path, ctx: dict) -> None:
     lines += ["", "TTFT = time to first token. TPOT = time per output token (mean inter-token "
               "latency after the first token). Prefill tok/s = prompt tokens / TTFT. "
               "Generation tok/s = output tokens per second after the first token.", ""]
+
+    lines += ["## Throughput vs concurrency", ""]
+    cpts = ctx.get("concurrency_points")
+    cap = ctx.get("concurrency_cap")
+    if cpts:
+        psize = cpts[0].get("target_tokens")
+        cap_line = (f"Recipe max concurrency: {cap} (from max_num_seqs / max_batch_size); "
+                    f"levels above it were skipped."
+                    if cap is not None else
+                    "Recipe declares no max_num_seqs / max_batch_size — full ladder run.")
+        lines += [f"Fixed {psize}-token prompt, {a.output_tokens} output tokens per request; "
+                  f"N streaming requests issued at once. A level's requests can fail or queue "
+                  f"when it exceeds the server's max_num_seqs / --max-batch-size.", "",
+                  cap_line, ""]
+        lines += concurrency_table(cpts)
+        lines += ["", "Per-req gen tok/s = mean per-request generation rate (falls as concurrency "
+                  "rises and the GPU is shared). Aggregate tok/s = total output tokens across all "
+                  "concurrent requests / wall-clock (the server's real throughput under load).", ""]
+    elif a.skip_concurrency:
+        lines += ["_Skipped (--skip-concurrency)._", ""]
+    else:
+        lines += ["_Concurrency sweep produced no data (see the run's speed-*.json and serve log)._", ""]
 
     failures = ctx.get("eval_failures") or []
     lines += ["## Intelligence (lm-eval)", ""]
@@ -1297,6 +1383,8 @@ def main() -> None:
             max_model_len = server_len
 
     ladder_points = None
+    concurrency_points = None
+    concurrency_cap = None
     eval_rows = None
     eval_failures: list[dict] = []
     bfcl_rows = None
@@ -1426,6 +1514,62 @@ def main() -> None:
                     break
                 revive_state["last_alive"] = dt.datetime.now(dt.timezone.utc)
 
+        # Concurrency sweep: a fixed-size prompt sent at increasing concurrency
+        # levels. Unlike the prompt-size ladder (monotonic, so it stops at the
+        # first failure), each concurrency level is an independent data point —
+        # a level whose requests fail (server max_num_seqs / --max-batch-size
+        # exceeded, or OOM) is recorded and the sweep continues to the next.
+        if args.skip_concurrency:
+            concurrency_points = []
+        elif revive("before concurrency")[0] == "dead":
+            warnings.append("Concurrency sweep skipped: server down and not restartable.")
+            concurrency_points = []
+        else:
+            try:
+                levels = [int(x) for x in str(args.concurrency_levels).split(",") if x.strip()]
+            except ValueError:
+                levels = [1, 2, 4, 8, 16, 32, 64]
+                warnings.append(f"Bad --concurrency-levels {args.concurrency_levels!r}; "
+                                "using default 1,2,4,8,16,32,64.")
+            # Only sweep concurrency levels the recipe's server will actually admit.
+            # A recipe with no declared cap keeps the full requested ladder.
+            concurrency_cap = detect_max_concurrency(recipe, defaults)
+            if concurrency_cap is not None:
+                dropped = [c for c in levels if c > concurrency_cap]
+                levels = [c for c in levels if c <= concurrency_cap]
+                if not levels:  # all requested levels exceed the cap
+                    levels = [concurrency_cap]
+                if dropped:
+                    warnings.append(
+                        f"Concurrency levels {dropped} exceed the recipe's declared max "
+                        f"concurrency ({concurrency_cap}); skipped.")
+            csize = args.concurrency_prompt
+            cap_note = f" (recipe max {concurrency_cap})" if concurrency_cap is not None else ""
+            log(f"Concurrency sweep: {csize}-token prompt x concurrency {levels}{cap_note}")
+            concurrency_points = []
+            for c in levels:
+                try:
+                    p = run_speed_point(base_url, served, csize, c, args.output_tokens,
+                                        args.request_timeout, args.seed, outdir)
+                except Exception as exc:  # noqa: BLE001 - a level must not kill the phase
+                    p = {"target_tokens": csize, "concurrency": c,
+                         "output_tokens": args.output_tokens, "ok": 0, "failed": c,
+                         "errors": [f"{type(exc).__name__}: {exc}"]}
+                concurrency_points.append(p)
+                if p["failed"]:
+                    oom = recent_oom_events(
+                        revive_state["last_alive"] - dt.timedelta(seconds=60))
+                    cause = f" (server OOM: {oom[-1][-150:]})" if oom else ""
+                    warnings.append(
+                        f"Concurrency {c}: {p['failed']} request(s) failed{cause}.")
+                    # A dead server must be revived before the next level; if it
+                    # can't be, stop the sweep (higher levels would only fail).
+                    if revive("after concurrency failure")[0] == "dead":
+                        warnings.append("Concurrency sweep stopped: server down and "
+                                        "not restartable.")
+                        break
+                revive_state["last_alive"] = dt.datetime.now(dt.timezone.utc)
+
     finally:
         if not args.skip_run:
             workload.stop()
@@ -1438,13 +1582,16 @@ def main() -> None:
     # clobber a previously-good report, while brand-new failures are still
     # recorded for batch skip.
     produced_results = bool(eval_rows) or bool(bfcl_rows) or any(
-        (pt or {}).get("ok") for pt in (ladder_points or []))
+        (pt or {}).get("ok") for pt in (ladder_points or [])) or any(
+        (pt or {}).get("ok") for pt in (concurrency_points or []))
     if produced_results or not report_path.exists():
         write_report(report_path, {
             "args": args, "rec": rec, "recipe": recipe, "defaults": defaults,
             "model_id": model_id, "served": served, "base_url": base_url,
             "outdir": outdir, "host": host_info(),
             "ladder_points": ladder_points,
+            "concurrency_points": concurrency_points,
+            "concurrency_cap": concurrency_cap,
             "eval_rows": eval_rows, "eval_failures": eval_failures, "warnings": warnings,
             "bfcl_rows": bfcl_rows, "skip_bfcl": args.skip_bfcl,
             "duration_s": time.monotonic() - t_start,

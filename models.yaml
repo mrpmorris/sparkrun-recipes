@@ -1,0 +1,250 @@
+  # Models that run on a single GB10 (tp == 1, min_nodes == 1) or have no numeric TP value.
+# Registries: eugr, official, atlas, community.
+# Generated 2026-07-11 from `sparkrun list --json`. 41 recipes.
+models:
+  - name: @eugr/diffusion-gemma-bf16
+    model: google/diffusiongemma-26B-A4B-it
+    registry: eugr
+    runtime: vllm-distributed
+    tp: ~
+    min_nodes: 1
+  - name: @eugr/diffusion-gemma-bf16-thinking
+    model: google/diffusiongemma-26B-A4B-it
+    registry: eugr
+    runtime: vllm-distributed
+    tp: ~
+    min_nodes: 1
+  - name: @eugr/diffusion-gemma-nvfp4
+    model: nvidia/diffusiongemma-26B-A4B-it-NVFP4
+    registry: eugr
+    runtime: vllm-distributed
+    tp: ~
+    min_nodes: 1
+  - name: @eugr/diffusion-gemma-nvfp4-thinking
+    model: nvidia/diffusiongemma-26B-A4B-it-NVFP4
+    registry: eugr
+    runtime: vllm-distributed
+    tp: ~
+    min_nodes: 1
+  - name: @eugr/glm-4.7-flash-awq
+    model: cyankiwi/GLM-4.7-Flash-AWQ-4bit
+    registry: eugr
+    runtime: vllm-distributed
+    tp: 1
+    min_nodes: 1
+  - name: @eugr/nemotron-3-nano-nvfp4
+    model: nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4
+    registry: eugr
+    runtime: vllm-distributed
+    tp: 1
+    min_nodes: 1
+  - name: @eugr/openai-gpt-oss-120b
+    model: openai/gpt-oss-120b
+    registry: eugr
+    runtime: vllm-distributed
+    tp: 1
+    min_nodes: 1
+  - name: @eugr/qwen3-coder-next-int4-autoround
+    model: Intel/Qwen3-Coder-Next-int4-AutoRound
+    registry: eugr
+    runtime: vllm-distributed
+    tp: ~
+    min_nodes: 1
+  - name: @eugr/qwen3.5-397b-int4-autoround
+    model: Intel/Qwen3.5-397B-A17B-int4-AutoRound
+    registry: eugr
+    runtime: vllm-ray
+    tp: ~
+    min_nodes: 1
+  - name: @official/qwen3-vl-embedding-8b-vllm
+    model: Qwen/Qwen3-VL-Embedding-8B
+    registry: official
+    runtime: vllm-distributed
+    tp: 1
+    min_nodes: 1
+  - name: @official/qwen3-vl-reranker-8b-vllm
+    model: Qwen/Qwen3-VL-Reranker-8B
+    registry: official
+    runtime: vllm-distributed
+    tp: 1
+    min_nodes: 1
+  - name: @official/qwen3.6-27b-fp8-mtp-vllm
+    model: Qwen/Qwen3.6-27B-FP8
+    registry: official
+    runtime: vllm-distributed
+    tp: 1
+    min_nodes: 1
+  - name: @official/qwen3.6-27b-fp8-vllm
+    model: Qwen/Qwen3.6-27B-FP8
+    registry: official
+    runtime: vllm-distributed
+    tp: 1
+    min_nodes: 1
+  - name: @official/qwen3.6-35b-a3b-fp8-mtp-vllm
+    model: Qwen/Qwen3.6-35B-A3B-FP8
+    registry: official
+    runtime: vllm-distributed
+    tp: 1
+    min_nodes: 1
+  - name: @official/qwen3.6-35b-a3b-fp8-vllm
+    model: Qwen/Qwen3.6-35B-A3B-FP8
+    registry: official
+    runtime: vllm-distributed
+    tp: 1
+    min_nodes: 1
+  - name: @atlas/diffusion-gemma-fp8-dynamic
+    model: RedHatAI/diffusiongemma-26B-A4B-it-FP8-dynamic
+    registry: atlas
+    runtime: vllm-distributed
+    tp: ~
+    min_nodes: 1
+  - name: @atlas/gemma-4-26b-a4b-nvfp4
+    model: bg-digitalservices/Gemma-4-26B-A4B-it-NVFP4A16
+    registry: atlas
+    runtime: atlas
+    tp: ~
+    min_nodes: 1
+  - name: @atlas/gemma-4-31b-nvfp4
+    model: nvidia/Gemma-4-31B-IT-NVFP4
+    registry: atlas
+    runtime: atlas
+    tp: ~
+    min_nodes: 1
+  - name: @atlas/mistral-small-4-119b-nvfp4
+    model: mistralai/Mistral-Small-4-119B-2603-NVFP4
+    registry: atlas
+    runtime: atlas
+    tp: ~
+    min_nodes: 1
+  - name: @atlas/nemotron-3-nano-30b-a3b-nvfp4
+    model: nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4
+    registry: atlas
+    runtime: atlas
+    tp: ~
+    min_nodes: 1
+  - name: @atlas/nemotron-3-super-120b-a12b-nvfp4
+    model: nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4
+    registry: atlas
+    runtime: atlas
+    tp: ~
+    min_nodes: 1
+  - name: @atlas/qwen3-next-80b-a3b-nvfp4
+    model: nvidia/Qwen3-Next-80B-A3B-Instruct-NVFP4
+    registry: atlas
+    runtime: atlas
+    tp: ~
+    min_nodes: 1
+  - name: @atlas/qwen3-vl-30b-a3b-nvfp4
+    model: ig1/Qwen3-VL-30B-A3B-Instruct-NVFP4
+    registry: atlas
+    runtime: atlas
+    tp: ~
+    min_nodes: 1
+  - name: @atlas/qwen3.5-0.8b-bf16-atlas
+    model: Qwen/Qwen3.5-0.8B
+    registry: atlas
+    runtime: atlas
+    tp: ~
+    min_nodes: 1
+  - name: @atlas/qwen3.5-122b-a10b-nvfp4-single
+    model: Sehyo/Qwen3.5-122B-A10B-NVFP4
+    registry: atlas
+    runtime: atlas
+    tp: ~
+    min_nodes: 1
+  - name: @atlas/qwen3.5-27b-dense-nvfp4
+    model: Kbenkhaled/Qwen3.5-27B-NVFP4
+    registry: atlas
+    runtime: atlas
+    tp: ~
+    min_nodes: 1
+  - name: @atlas/qwen3.5-35b-a3b-nvfp4
+    model: Sehyo/Qwen3.5-35B-A3B-NVFP4
+    registry: atlas
+    runtime: atlas
+    tp: ~
+    min_nodes: 1
+  - name: @atlas/qwen3.6-27b-fp8
+    model: Qwen/Qwen3.6-27B-FP8
+    registry: atlas
+    runtime: atlas
+    tp: ~
+    min_nodes: 1
+  - name: @atlas/qwen3.6-27b-fp8-mtp
+    model: Qwen/Qwen3.6-27B-FP8
+    registry: atlas
+    runtime: atlas
+    tp: ~
+    min_nodes: 1
+  - name: @atlas/qwen3.6-27b-nvfp4
+    model: unsloth/Qwen3.6-27B-NVFP4
+    registry: atlas
+    runtime: atlas
+    tp: ~
+    min_nodes: 1
+  - name: @atlas/qwen3.6-27b-nvfp4-prefill-record
+    model: nvidia/Qwen3.6-27B-NVFP4
+    registry: atlas
+    runtime: atlas
+    tp: ~
+    min_nodes: 1
+  - name: @atlas/qwen3.6-35b-a3b-fp8-bf16head
+    model: Qwen/Qwen3.6-35B-A3B-FP8
+    registry: atlas
+    runtime: atlas
+    tp: ~
+    min_nodes: 1
+  - name: @atlas/qwen3.6-35b-a3b-fp8-mtp
+    model: Qwen/Qwen3.6-35B-A3B-FP8
+    registry: atlas
+    runtime: atlas
+    tp: ~
+    min_nodes: 1
+  - name: @atlas/qwen3.6-35b-a3b-fp8-nvfp4head
+    model: Qwen/Qwen3.6-35B-A3B-FP8
+    registry: atlas
+    runtime: atlas
+    tp: ~
+    min_nodes: 1
+  - name: @atlas/qwen3.6-35b-a3b-nvfp4-nvidia
+    model: nvidia/Qwen3.6-35B-A3B-NVFP4
+    registry: atlas
+    runtime: atlas
+    tp: ~
+    min_nodes: 1
+  - name: @community/north-mini-code-1.0-fp8-vllm-XanuNetworks
+    model: CohereLabs/North-Mini-Code-1.0-fp8
+    registry: community
+    runtime: vllm-distributed
+    tp: 1
+    min_nodes: 1
+  - name: @community/north-mini-code-1.0-nvfp4-vllm-XanuNetworks
+    model: XanuNetworks/North-Mini-Code-1.0-NVFP4
+    registry: community
+    runtime: vllm-distributed
+    tp: 1
+    min_nodes: 1
+  - name: @community/qwen3.5-122b-a10b-int4fp8-mtp-vllm-Taremimi7710
+    model: Intel/Qwen3.5-122B-A10B-int4-AutoRound
+    registry: community
+    runtime: vllm-distributed
+    tp: 1
+    min_nodes: 1
+  - name: @community/qwen3.5-27b-fp8-dflash-vllm-banana_baeee
+    model: Qwen/Qwen3.5-27B-FP8
+    registry: community
+    runtime: vllm-distributed
+    tp: 1
+    min_nodes: 1
+  - name: @community/qwen3.6-35b-a3b-autoround-int4-dflash-vllm-cipherfoxie
+    model: Intel/Qwen3.6-35B-A3B-int4-mixed-AutoRound
+    registry: community
+    runtime: vllm-distributed
+    tp: 1
+    min_nodes: 1
+  - name: @community/qwen3.6-35b-a3b-fp8-vllm-povedaaqui
+    model: Qwen/Qwen3.6-35B-A3B-FP8
+    registry: community
+    runtime: vllm-distributed
+    tp: 1
+    min_nodes: 1

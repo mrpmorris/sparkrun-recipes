@@ -1,0 +1,76 @@
+# Source wrapper:
+# https://github.com/MiaAI-Lab/Qwen3.6-27B-NVFP4-vLLM
+#
+# Model:
+# https://huggingface.co/nvidia/Qwen3.6-27B-NVFP4
+
+recipe_version: '2'
+
+model: nvidia/Qwen3.6-27B-NVFP4
+
+runtime: vllm
+
+builder: eugr
+
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly:latest
+
+min_nodes: 1
+
+max_nodes: 1
+
+metadata:
+  description: "Qwen3.6-27B-NVFP4 - NVIDIA ModelOpt NVFP4, vLLM, 262K context, MTP 3"
+  model_params: 27B
+  model_dtype: nvfp4
+
+defaults:
+  host: 0.0.0.0
+  port: 8000
+  served_model_name: nvidia/Qwen3.6-27B-NVFP4
+  tensor_parallel: 1
+  pipeline_parallel: 1
+  gpu_memory_utilization: 0.7
+  max_model_len: 262144
+  max_num_seqs: 16
+  max_num_batched_tokens: 16384
+  quantization: modelopt
+  load_format: fastsafetensors
+  attention_backend: flashinfer
+  moe_backend: marlin
+  reasoning_parser: qwen3
+  tool_call_parser: qwen3_coder
+  speculative_config: '{"method":"mtp","num_speculative_tokens":3,"moe_backend":"triton"}'
+  generation_config: '{"temperature":0.6,"top_p":0.95,"top_k":20,"min_p":0.0,"presence_penalty":1.5,"repetition_penalty":1.0}'
+
+env:
+  VLLM_TARGET_DEVICE: cuda
+  VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
+  HF_TOKEN: "${HF_TOKEN}"
+
+command: |
+  vllm serve {model} \
+    --served-model-name {served_model_name} \
+    --host {host} \
+    --port {port} \
+    -tp {tensor_parallel} \
+    -pp {pipeline_parallel} \
+    --trust-remote-code \
+    --quantization {quantization} \
+    --attention-backend {attention_backend} \
+    --moe-backend {moe_backend} \
+    --gpu-memory-utilization {gpu_memory_utilization} \
+    --max-model-len {max_model_len} \
+    --max-num-seqs {max_num_seqs} \
+    --max-num-batched-tokens {max_num_batched_tokens} \
+    --enable-chunked-prefill \
+    --async-scheduling \
+    --enable-prefix-caching \
+    --limit-mm-per-prompt '{"image":4}' \
+    --allowed-media-domains '*' \
+    --speculative-config '{speculative_config}' \
+    --load-format {load_format} \
+    --reasoning-parser {reasoning_parser} \
+    --override-generation-config '{generation_config}' \
+    --tool-call-parser {tool_call_parser} \
+    --enable-auto-tool-choice
+

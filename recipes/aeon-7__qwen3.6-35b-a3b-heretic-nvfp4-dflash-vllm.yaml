@@ -1,0 +1,119 @@
+# Source:
+# https://github.com/AEON-7/Qwen3.6-35B-A3B-heretic-NVFP4-DFlash
+#
+# Model:
+# https://huggingface.co/AEON-7/Qwen3.6-35B-A3B-heretic-NVFP4
+#
+# DFlash drafter:
+# https://huggingface.co/z-lab/Qwen3.6-35B-A3B-DFlash
+
+recipe_version: '2'
+
+model: AEON-7/Qwen3.6-35B-A3B-heretic-NVFP4
+
+runtime: vllm
+builder: eugr
+container: ghcr.io/aeon-7/aeon-vllm-ultimate:latest
+
+# The AEON image sets ENTRYPOINT ["/bin/bash"]. sparkrun launches the serve
+# command via `bash -c <cmd>`, so that entrypoint must be cleared or docker
+# runs `/bin/bash bash -c ...`, which fails with exit 126
+# ("cannot execute binary file"). Empty string clears the image ENTRYPOINT.
+executor_config:
+  entrypoint: ""
+
+min_nodes: 1
+max_nodes: 1
+
+metadata:
+  description: "Qwen3.6-35B-A3B heretic - NVFP4 compressed-tensors, MoE (256 experts, ~3B active), DFlash spec-decode, 256K context, multimodal"
+  model_params: 35B-A3B
+  model_dtype: nvfp4
+
+defaults:
+  host: 0.0.0.0
+  port: 8000
+
+  served_model_name: Qwen/Qwen3.6-35B
+
+  tensor_parallel: 1
+  pipeline_parallel: 1
+
+  gpu_memory_utilization: 0.85
+  max_model_len: 262144
+  max_num_seqs: 16
+  max_num_batched_tokens: 16384
+
+  # NVFP4 checkpoint is packed as compressed-tensors (not modelopt like the 27B).
+  quantization: compressed-tensors
+  attention_backend: flash_attn
+
+  reasoning_parser: qwen3
+  tool_call_parser: qwen3_coder
+
+  # DFlash speculative decoding with the external drafter (pulled from HF).
+  # Drafter pinned to the pre-2026-06-19 revision. The z-lab "Modal retrain"
+  # (commit 0ce151d0) rebuilt the drafter as 6 layers / sliding-window /
+  # 8 KV heads x 128 = 4096 B/token, double the target's full-attention page
+  # (2 KV heads x 256 = 2048 B/token). The hybrid GDN target has fixed-size
+  # mamba pages, so vllm cannot unify KV page sizes and asserts in
+  # unify_kv_cache_spec_page_size (on both the 0.23 dflashfix and 0.24 latest
+  # images). The pinned 8-layer all-full-attention drafter (4 KV heads x 128)
+  # page-matches the target exactly. Revision is pre-downloaded to the HF
+  # cache (sparkrun serves offline): hf download z-lab/Qwen3.6-35B-A3B-DFlash --revision 42d3b34d...
+  speculative_config: '{"method":"dflash","model":"z-lab/Qwen3.6-35B-A3B-DFlash","revision":"42d3b34d588423cdae7ba8f53a8cf7789346a719","num_speculative_tokens":11}'
+  # Coding profile (T=0.6). For maximum DFlash acceptance the vendor suggests T=0 (greedy).
+  generation_config: '{"temperature":0.6,"top_p":0.95,"top_k":20,"min_p":0.0,"presence_penalty":0.0,"repetition_penalty":1.0}'
+
+env:
+  VLLM_TARGET_DEVICE: cuda
+  VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
+  TORCH_CUDA_ARCH_LIST: "12.1a"
+  NVIDIA_FORWARD_COMPAT: "1"
+  ENABLE_NVFP4_SM100: "0"
+  VLLM_TEST_FORCE_FP8_MARLIN: "1"
+  PYTORCH_CUDA_ALLOC_CONF: "expandable_segments:True"
+  HF_TOKEN: "${HF_TOKEN}"
+
+command: |
+  vllm serve {model} \
+    --served-model-name {served_model_name} \
+    --host {host} \
+    --port {port} \
+    -tp {tensor_parallel} \
+    -pp {pipeline_parallel} \
+    --trust-remote-code \
+    --quantization {quantization} \
+    --attention-backend {attention_backend} \
+    --gpu-memory-utilization {gpu_memory_utilization} \
+    --max-model-len {max_model_len} \
+    --max-num-seqs {max_num_seqs} \
+    --max-num-batched-tokens {max_num_batched_tokens} \
+    --enable-chunked-prefill \
+    --enable-prefix-caching \
+    --limit-mm-per-prompt '{"image":4,"video":2}' \
+    --mm-encoder-tp-mode data \
+    --speculative-config '{speculative_config}' \
+    --reasoning-parser {reasoning_parser} \
+    --override-generation-config '{generation_config}' \
+    --tool-call-parser {tool_call_parser} \
+    --enable-auto-tool-choice
+
+# Pre-distribute the DFlash drafter at the pinned pre-retrain revision so a
+# virgin machine caches the correct 8-layer full-attention drafter during the
+# distribution phase. sparkrun auto-adds the drafter from speculative_config
+# but drops the revision (fetches main = the broken 6-layer retrain), and it
+# serves with HF_HUB_OFFLINE=1, so without this it fails offline. A custom
+# distribution_config replaces the auto default, so {model}/{container} are
+# re-listed here. add_model dedups by name, so the auto-add is skipped and this
+# pinned revision wins.
+distribution_config:
+  models:
+    entries:
+      - name: "{model}"
+      - name: z-lab/Qwen3.6-35B-A3B-DFlash
+        revision: 42d3b34d588423cdae7ba8f53a8cf7789346a719
+  containers:
+    entries:
+      - name: "{container}"
+

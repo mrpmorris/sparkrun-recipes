@@ -1,11 +1,18 @@
 #!/usr/bin/env bash
-# benchllm-all.sh — run benchllm.sh across every valid recipe.
+# benchllm-all.sh — run benchllm.sh across a set of recipes.
 #
-# Targets:
-#   1. Every *.yaml recipe file in this script's folder.
-#   2. Every built-in recipe from `sparkrun list` whose TP column is `1`
-#      or is not a number (e.g. `-`). Recipes needing TP > 1 are skipped
-#      because this box is a single GB10 (tensor parallel > 1 won't fit).
+# The set of recipes to benchmark comes from two sources, in this order:
+#   1. models.yaml (next to this script): every `name:` entry under `models:`
+#      (registry recipe names, e.g. @eugr/some-recipe). Curate it with
+#      `sparkrun list --json`. Expected to hold only recipes that fit this
+#      single-GB10 box (TP == 1 / min_nodes 1 or no numeric TP); nothing here
+#      re-filters by TP.
+#   2. Every *.yaml / *.yml file in the recipes/ folder (next to this script) —
+#      local recipe files, run by path. Drop a recipe file in there to include
+#      it without touching models.yaml.
+#
+# Either source may be empty; the run proceeds as long as at least one recipe
+# is found across both.
 #
 # Every recipe is run with --cleanup so HF models downloaded for a run are
 # deleted when it finishes (models already cached at startup are kept) — the
@@ -27,41 +34,41 @@ export PATH="$HOME/.local/bin:$PATH"
 BENCHLLM="$SCRIPT_DIR/benchllm.sh"
 [[ -x "$BENCHLLM" ]] || { echo "benchllm-all: $BENCHLLM not found or not executable" >&2; exit 1; }
 
+MODELS_YAML="${MODELS_YAML:-$SCRIPT_DIR/models.yaml}"
+RECIPES_DIR="${RECIPES_DIR:-$SCRIPT_DIR/recipes}"
+
 # --- Build the list of recipes to run -------------------------------------
 recipes=()
 
-# 1. Local YAML recipes in this folder.
-shopt -s nullglob
-for f in "$SCRIPT_DIR"/*.yaml "$SCRIPT_DIR"/*.yml; do
-  recipes+=("$f")
-done
-shopt -u nullglob
-
-# 2. Built-in recipes with TP == 1 or TP not a number.
-if command -v sparkrun >/dev/null 2>&1; then
+# 1. Registry recipe names from models.yaml. Lines look like:
+#      models:
+#        - name: @eugr/some-recipe
+#          model: ...
+#    Comments (#...) and blank lines are ignored; values may be quoted.
+if [[ -f "$MODELS_YAML" ]]; then
   while IFS= read -r name; do
     [[ -n "$name" ]] && recipes+=("$name")
-  done < <(sparkrun list 2>/dev/null \
-             | awk '/^@/ { if ($3 == "1" || $3 !~ /^[0-9]+$/) print $1 }')
+  done < <(sed -E \
+             -e 's/#.*$//' \
+             -e '/^[[:space:]]*-[[:space:]]*name:[[:space:]]*/!d' \
+             -e 's/^[[:space:]]*-[[:space:]]*name:[[:space:]]*//' \
+             -e 's/^["'\'']//; s/["'\'']?[[:space:]]*$//' \
+             "$MODELS_YAML")
 else
-  echo "benchllm-all: WARNING — sparkrun not on PATH; skipping built-in recipes." >&2
+  echo "benchllm-all: models file not found (skipping): $MODELS_YAML" >&2
 fi
 
-# Drop transitional recipes: on this box they wedge sglang's scheduler on the
-# lm-eval step (models endpoint stays up, generation dies). Skip anything whose
-# name contains @sparkrun-transitional.
-filtered=()
-for r in "${recipes[@]}"; do
-  if [[ "$r" == *@sparkrun-transitional* ]]; then
-    echo "benchllm-all: skipping transitional recipe: $r" >&2
-  else
-    filtered+=("$r")
-  fi
-done
-recipes=("${filtered[@]+"${filtered[@]}"}")
+# 2. Local recipe files in the recipes/ folder.
+if [[ -d "$RECIPES_DIR" ]]; then
+  shopt -s nullglob
+  for f in "$RECIPES_DIR"/*.yaml "$RECIPES_DIR"/*.yml; do
+    recipes+=("$f")
+  done
+  shopt -u nullglob
+fi
 
 if [[ ${#recipes[@]} -eq 0 ]]; then
-  echo "benchllm-all: no recipes found." >&2
+  echo "benchllm-all: no recipes found in $MODELS_YAML or $RECIPES_DIR." >&2
   exit 1
 fi
 
