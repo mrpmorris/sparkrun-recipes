@@ -2,30 +2,6 @@
 # Registries: eugr, official, atlas, community.
 # Generated 2026-07-11 from `sparkrun list --json`. 41 recipes.
 models:
-  - name: @eugr/diffusion-gemma-bf16
-    model: google/diffusiongemma-26B-A4B-it
-    registry: eugr
-    runtime: vllm-distributed
-    tp: ~
-    min_nodes: 1
-  - name: @eugr/diffusion-gemma-bf16-thinking
-    model: google/diffusiongemma-26B-A4B-it
-    registry: eugr
-    runtime: vllm-distributed
-    tp: ~
-    min_nodes: 1
-  - name: @eugr/diffusion-gemma-nvfp4
-    model: nvidia/diffusiongemma-26B-A4B-it-NVFP4
-    registry: eugr
-    runtime: vllm-distributed
-    tp: ~
-    min_nodes: 1
-  - name: @eugr/diffusion-gemma-nvfp4-thinking
-    model: nvidia/diffusiongemma-26B-A4B-it-NVFP4
-    registry: eugr
-    runtime: vllm-distributed
-    tp: ~
-    min_nodes: 1
   - name: @eugr/glm-4.7-flash-awq
     model: cyankiwi/GLM-4.7-Flash-AWQ-4bit
     registry: eugr
@@ -48,12 +24,6 @@ models:
     model: Intel/Qwen3-Coder-Next-int4-AutoRound
     registry: eugr
     runtime: vllm-distributed
-    tp: ~
-    min_nodes: 1
-  - name: @eugr/qwen3.5-397b-int4-autoround
-    model: Intel/Qwen3.5-397B-A17B-int4-AutoRound
-    registry: eugr
-    runtime: vllm-ray
     tp: ~
     min_nodes: 1
   - name: @official/qwen3-vl-embedding-8b-vllm
@@ -91,24 +61,6 @@ models:
     registry: official
     runtime: vllm-distributed
     tp: 1
-    min_nodes: 1
-  - name: @atlas/diffusion-gemma-fp8-dynamic
-    model: RedHatAI/diffusiongemma-26B-A4B-it-FP8-dynamic
-    registry: atlas
-    runtime: vllm-distributed
-    tp: ~
-    min_nodes: 1
-  - name: @atlas/gemma-4-26b-a4b-nvfp4
-    model: bg-digitalservices/Gemma-4-26B-A4B-it-NVFP4A16
-    registry: atlas
-    runtime: atlas
-    tp: ~
-    min_nodes: 1
-  - name: @atlas/gemma-4-31b-nvfp4
-    model: nvidia/Gemma-4-31B-IT-NVFP4
-    registry: atlas
-    runtime: atlas
-    tp: ~
     min_nodes: 1
   - name: @atlas/mistral-small-4-119b-nvfp4
     model: mistralai/Mistral-Small-4-119B-2603-NVFP4

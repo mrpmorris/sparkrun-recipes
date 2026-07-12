@@ -139,9 +139,6 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--gpu-mem", type=float, default=0.75,
                    help="GPU memory fraction passed to sparkrun run --gpu-mem (default 0.75; "
                         "keeps headroom for eval harnesses and diffusion activation buffers)")
-    p.add_argument("--max-restarts", type=int, default=2,
-                   help="How many times a server that dies mid-run (e.g. GPU OOM) is restarted "
-                        "before the remaining phases are skipped (default 2)")
     return p.parse_args()
 
 
@@ -789,46 +786,68 @@ def recent_oom_events(since: dt.datetime, syslog: str = "/var/log/syslog") -> li
     return hits
 
 
-def revive_server(workload: Workload, base_url: str, served: str, phase: str,
-                  warnings: list, state: dict, follow_dest: Path,
-                  max_restarts: int, can_restart: bool) -> tuple[str, str]:
-    """Probe the server; if it no longer generates, classify the death (OOM vs
-    unknown) from syslog and try to relaunch it. Returns (status, marker) where
-    status is "alive" | "restarted" | "dead" and marker describes the death
-    ("" when alive). Restarts are capped at max_restarts per run."""
-    if server_generates(base_url, served):
-        state["last_alive"] = dt.datetime.now(dt.timezone.utc)
-        return "alive", ""
+# Error codes recorded against a failed step (shown in the report's Code column).
+#   OOM         - syslog shows a GPU/kernel/earlyoom out-of-memory kill
+#   CRASH       - engine died with a fatal error in the serve log (bug, bad kernel)
+#   HANG        - endpoint alive but generation stopped (wedged scheduler); no OOM/crash
+#   STARTUP     - the server could not be (re)started for this step
+#   UNSUPPORTED - the server cannot perform this eval (e.g. no echo+logprobs)
+#   ERROR       - the step failed while the server stayed healthy (harness/config error)
+def classify_death(state: dict) -> tuple[str, str]:
+    """Classify why the server is not generating, from syslog + the serve log.
+    Returns (code, detail): OOM if syslog shows an out-of-memory kill, CRASH if
+    the serve log carries a fatal engine error, else HANG."""
     since = state["last_alive"] - dt.timedelta(seconds=60)
     oom = recent_oom_events(since)
     if oom:
-        marker = f"server OOM ({oom[-1][-200:]})"
-    else:
-        marker = "server stopped generating (no OOM event in syslog; crashed or wedged)"
-    log(f"Server is down ({phase}): {marker}")
-    used = state.get("restarts", 0)
+        return "OOM", oom[-1][-200:]
+    serr = fatal_serve_error(read_serve_log(200_000))
+    if serr:
+        return "CRASH", serr
+    return "HANG", "server alive but stopped generating (no OOM or fatal engine error in logs)"
+
+
+def ensure_up(workload: Workload, base_url: str, served: str, phase: str,
+              warnings: list, state: dict, follow_dest: Path,
+              can_restart: bool) -> tuple[str, str, str]:
+    """Ensure the server can generate before a step runs. If it already
+    generates, continue; otherwise (re)start it. There is NO restart cap — every
+    step independently brings the model back up. Returns (status, code, detail):
+    status is "alive" (already up) | "started" (was down, restarted) | "down"
+    (could not be started); code/detail describe the death that was recovered
+    ("" when it was already alive)."""
+    if server_generates(base_url, served):
+        state["last_alive"] = dt.datetime.now(dt.timezone.utc)
+        return "alive", "", ""
+    code, detail = classify_death(state)
+    log(f"Server not generating ({phase}): [{code}] {detail}")
     if not can_restart:
-        warnings.append(f"{marker} ({phase}); --skip-run set, cannot restart.")
-        return "dead", marker
-    if used >= max_restarts:
-        warnings.append(f"{marker} ({phase}); restart budget exhausted "
-                        f"({used}/{max_restarts}).")
-        return "dead", marker
-    state["restarts"] = used + 1
-    log(f"Restarting server (restart {used + 1}/{max_restarts})...")
+        warnings.append(f"{phase}: server down [{code}]; --skip-run set, cannot restart.")
+        return "down", code, detail
+    n = state.get("restarts", 0) + 1
+    state["restarts"] = n
+    log(f"Ensuring server is up for {phase} (start #{n})...")
     try:
         workload.restart()
         wait_for_ready(base_url, 1800)
         warmup(base_url, served)
         workload.follow_logs(follow_dest)
     except (StartupError, requests.RequestException) as exc:
-        warnings.append(f"{marker} ({phase}); restart {used + 1}/{max_restarts} "
-                        f"failed: {exc}")
-        return "dead", marker
-    warnings.append(f"{marker} ({phase}); server restarted "
-                    f"({used + 1}/{max_restarts}).")
+        warnings.append(f"{phase}: server was down [{code}] and could not be restarted: {exc}")
+        return "down", "STARTUP", str(exc)
+    warnings.append(f"{phase}: server was down [{code}]; restarted (start #{n}).")
     state["last_alive"] = dt.datetime.now(dt.timezone.utc)
-    return "restarted", marker
+    return "started", code, detail
+
+
+def diagnose_step_failure(base_url: str, served: str, state: dict) -> tuple[str, str]:
+    """A step reported an error — classify it for the record. If the server still
+    generates, the step itself failed (ERROR, e.g. a harness/config error);
+    otherwise report why the server died (OOM/CRASH/HANG)."""
+    if server_generates(base_url, served):
+        state["last_alive"] = dt.datetime.now(dt.timezone.utc)
+        return "ERROR", ""
+    return classify_death(state)
 
 
 def probe_loglikelihood_support(base_url: str, model: str) -> bool:
@@ -890,7 +909,7 @@ def failure(task: str, log_path: Path, fallback: str) -> dict:
         if exc:
             reason = exc[-1].strip()
     return {"task": task, "reason": reason[:400], "log": log_path.name,
-            "description": TASK_DESCRIPTIONS.get(task, "")}
+            "code": "ERROR", "description": TASK_DESCRIPTIONS.get(task, "")}
 
 
 def stream_process(cmd, log_path, env=None, stall_s=None, hard_cap_s=None, poll_s=15):
@@ -1269,10 +1288,14 @@ def write_report(report_path: Path, ctx: dict) -> None:
                   "here is itself a result: the model/config could not perform this evaluation. "
                   "Multiple-choice tasks (acc / acc_norm) request token log-probabilities from the "
                   "inference server; generative tasks do not.", "",
-                  "| Task | Description | Reason | Log |",
-                  "| --- | --- | --- | --- |"]
+                  "Code: `OOM` out-of-memory kill · `CRASH` fatal engine error in the serve log · "
+                  "`HANG` server alive but stopped generating · `STARTUP` server could not be "
+                  "(re)started · `UNSUPPORTED` server can't perform this eval · `ERROR` step failed "
+                  "with the server still healthy.", "",
+                  "| Task | Code | Description | Reason | Log |",
+                  "| --- | --- | --- | --- | --- |"]
         for f in failures:
-            lines.append(f"| {f['task']} | {f.get('description', '')} "
+            lines.append(f"| {f['task']} | {f.get('code', '')} | {f.get('description', '')} "
                          f"| {f['reason']} | {f['log']} |")
         lines.append("")
 
@@ -1347,7 +1370,8 @@ def main() -> None:
 
     workload = Workload(sparkrun, rec, outdir / "sparkrun.log", gpu_mem=args.gpu_mem)
     follow_dest = outdir / "serve-follow.log"
-    # Shared state for the mid-run death detector/restarter (revive_server).
+    # Shared state for the per-step server lifecycle (ensure_up / classify_death):
+    # last_alive anchors the syslog OOM scan; restarts is a running start counter.
     revive_state = {"last_alive": dt.datetime.now(dt.timezone.utc), "restarts": 0}
     try:
         if args.skip_run:
@@ -1389,22 +1413,36 @@ def main() -> None:
     eval_failures: list[dict] = []
     bfcl_rows = None
 
-    def revive(phase: str) -> tuple[str, str]:
-        """Probe/restart the server after a failure (see revive_server)."""
-        return revive_server(workload, base_url, served, phase, warnings,
-                             revive_state, follow_dest, args.max_restarts,
-                             can_restart=not args.skip_run)
+    def ensure(phase: str) -> tuple[str, str, str]:
+        """Ensure the server is up before a step; (re)start it if not (no cap)."""
+        return ensure_up(workload, base_url, served, phase, warnings,
+                         revive_state, follow_dest, can_restart=not args.skip_run)
+
+    def diagnose(phase: str) -> tuple[str, str]:
+        """Classify a step failure: ERROR if the server is still healthy, else
+        the death code (OOM/CRASH/HANG)."""
+        return diagnose_step_failure(base_url, served, revive_state)
 
     try:
         if not args.skip_bfcl:
             subsets = [s.strip() for s in args.bfcl_subsets.split(",") if s.strip()]
-            bfcl_rows, bfcl_err = run_bfcl(base_url, served, subsets, args.bfcl_limit, outdir)
-            if bfcl_err:
-                _, marker = revive("bfcl")
-                if marker:
-                    bfcl_err["reason"] = f"{marker}; {bfcl_err['reason']}"[:400]
-                eval_failures.append(bfcl_err)
-                log(f"  FAILED bfcl: {bfcl_err['reason']}")
+            # Ensure the server is up before the step; if it can't be, record it.
+            status, code, detail = ensure("before bfcl")
+            if status == "down":
+                eval_failures.append({
+                    "task": "bfcl", "log": "", "code": code,
+                    "reason": f"skipped: server could not be started ({detail})"[:400],
+                    "description": TASK_DESCRIPTIONS.get("bfcl", "")})
+                log(f"  SKIPPED bfcl [{code}]: server down")
+            else:
+                bfcl_rows, bfcl_err = run_bfcl(base_url, served, subsets, args.bfcl_limit, outdir)
+                if bfcl_err:
+                    code, detail = diagnose("bfcl")
+                    bfcl_err["code"] = code
+                    if detail:
+                        bfcl_err["reason"] = f"[{code}] {detail}; {bfcl_err['reason']}"[:400]
+                    eval_failures.append(bfcl_err)
+                    log(f"  FAILED bfcl [{code}]: {bfcl_err['reason']}")
         if not args.skip_eval:
             eval_rows = []
             specs = [t.strip() for t in args.eval_tasks.split(",") if t.strip()]
@@ -1416,103 +1454,83 @@ def main() -> None:
                     warnings.append(
                         "Server does not support echo+logprobs on /v1/completions "
                         "(loglikelihood scoring); multiple-choice tasks skipped.")
+            # Each task independently ensures the server is up before it runs; a
+            # failure is recorded with a code and the loop moves on (no cascade
+            # skip — the next task will restart the server if this one killed it).
             for spec in specs:
                 task, sep, lim = spec.partition(":")
                 limit = int(lim) if sep else args.eval_limit
                 if task in LOGLIKELIHOOD_TASKS and not ll_ok:
                     log(f"lm-eval: {task} skipped (server lacks echo+logprobs)")
                     eval_failures.append({
-                        "task": task, "log": "",
+                        "task": task, "log": "", "code": "UNSUPPORTED",
                         "reason": "skipped: server does not support echo+logprobs "
                                   "(required for loglikelihood scoring of multiple-choice tasks)",
                         "description": TASK_DESCRIPTIONS.get(task, "")})
                     continue
-                # Don't hand lm-eval a dead server (it would burn minutes of
-                # retries): probe first, restarting if an earlier phase killed it.
-                status, marker = revive(f"before {task}")
-                if status == "dead":
-                    remaining = specs[specs.index(spec):]
-                    warnings.append(f"Server down before {task} ({marker}); "
-                                    f"eval tasks skipped: {', '.join(remaining)}.")
-                    for rspec in remaining:
-                        rtask = rspec.partition(":")[0]
-                        eval_failures.append({
-                            "task": rtask, "log": "",
-                            "reason": f"skipped: {marker}"[:400],
-                            "description": TASK_DESCRIPTIONS.get(rtask, "")})
-                    break
+                status, code, detail = ensure(f"before {task}")
+                if status == "down":
+                    eval_failures.append({
+                        "task": task, "log": "", "code": code,
+                        "reason": f"skipped: server could not be started ({detail})"[:400],
+                        "description": TASK_DESCRIPTIONS.get(task, "")})
+                    log(f"  SKIPPED {task} [{code}]: server down")
+                    continue
                 rows, err = run_lm_eval_task(task, base_url, served, tokenizer_id or served,
                                              limit, args.eval_concurrency, outdir)
                 eval_rows += rows
                 if err:
-                    # Did the task fail because the server died under it (e.g.
-                    # GPU OOM)? If so restart the server, mark this task as
-                    # OOM-skipped (no retry), and carry on with the next task.
-                    status, marker = revive(f"during {task}")
-                    if status == "restarted":
-                        err["reason"] = (f"{marker}; server restarted, "
-                                         f"task skipped")[:400]
-                    elif status == "dead":
-                        err["reason"] = f"{marker}; {err['reason']}"[:400]
+                    code, detail = diagnose(f"during {task}")
+                    err["code"] = code
+                    if detail:
+                        err["reason"] = f"[{code}] {detail}; {err['reason']}"[:400]
                     eval_failures.append(err)
-                    log(f"  FAILED {task}: {err['reason']}")
-                    if status == "dead":
-                        remaining = specs[specs.index(spec) + 1:]
-                        warnings.append(
-                            f"Server died during {task} and could not be restarted; "
-                            f"remaining eval tasks skipped: {', '.join(remaining) or 'none'}.")
-                        for rspec in remaining:
-                            rtask = rspec.partition(":")[0]
-                            eval_failures.append({
-                                "task": rtask, "log": "",
-                                "reason": f"skipped: {marker}"[:400],
-                                "description": TASK_DESCRIPTIONS.get(rtask, "")})
-                        break
+                    log(f"  FAILED {task} [{code}]: {err['reason']}")
 
         if args.skip_speed:
             ladder_points, reuse_note = load_previous_speed(
                 SCRIPT_DIR / "bench-results" / rec.results_name, outdir)
             if reuse_note:
                 warnings.append(reuse_note)
-        # Make sure the speed ladder starts against a live server (an earlier
-        # phase may have OOM'd it); if it can't be revived, skip the phase.
-        elif revive("before speed")[0] == "dead":
-            warnings.append("Speed benchmark skipped: server down and not restartable.")
-            ladder_points = []
         else:
-            sizes, ladder_warnings = prompt_ladder(args.max_prompt, max_model_len,
-                                                   args.output_tokens, args.steps)
-            warnings += ladder_warnings
-            log(f"Prompt ladder: {sizes}")
-            # Build incrementally so a rung that fails (or raises) can't abort the
-            # whole phase and leave ladder_points unset. Prompt size is monotonic,
-            # so once a rung fails the larger ones only fail harder (and a ~250k
-            # prefill can hang for hours) - stop the ladder at the first failure.
-            ladder_points = []
-            for i, size in enumerate(sizes):
-                try:
-                    p = run_speed_point(base_url, served, size, 1, args.output_tokens,
-                                        args.request_timeout, args.seed, outdir)
-                except Exception as exc:  # noqa: BLE001 - a rung must not kill the phase
-                    p = {"target_tokens": size, "concurrency": 1,
-                         "output_tokens": args.output_tokens, "ok": 0, "failed": 1,
-                         "errors": [f"{type(exc).__name__}: {exc}"]}
-                ladder_points.append(p)
-                if p["failed"]:
-                    # Label the failure with an OOM marker when syslog shows the
-                    # server was OOM-killed under this rung.
-                    oom = recent_oom_events(
-                        revive_state["last_alive"] - dt.timedelta(seconds=60))
-                    cause = f" (server OOM: {oom[-1][-150:]})" if oom else ""
-                    warnings.append(
-                        f"Speed point {p['target_tokens']} tokens failed{cause}: "
-                        f"{'; '.join(p['errors'])}")
-                    remaining = sizes[i + 1:]
-                    if remaining:
-                        warnings.append(f"Speed ladder stopped after the {size}-token "
-                                        f"failure; skipped larger rungs: {remaining}.")
-                    break
-                revive_state["last_alive"] = dt.datetime.now(dt.timezone.utc)
+            # Ensure the server is up before the speed step; (re)start if needed.
+            sp_status, sp_code, sp_detail = ensure("before speed")
+            if sp_status == "down":
+                warnings.append(f"[{sp_code}] Speed benchmark skipped: server could "
+                                f"not be started ({sp_detail}).")
+                ladder_points = []
+            else:
+                sizes, ladder_warnings = prompt_ladder(args.max_prompt, max_model_len,
+                                                       args.output_tokens, args.steps)
+                warnings += ladder_warnings
+                log(f"Prompt ladder: {sizes}")
+                # Build incrementally so a rung that fails (or raises) can't abort the
+                # whole phase and leave ladder_points unset. Prompt size is monotonic,
+                # so once a rung fails the larger ones only fail harder (and a ~250k
+                # prefill can hang for hours) - stop the ladder at the first failure.
+                ladder_points = []
+                for i, size in enumerate(sizes):
+                    try:
+                        p = run_speed_point(base_url, served, size, 1, args.output_tokens,
+                                            args.request_timeout, args.seed, outdir)
+                    except Exception as exc:  # noqa: BLE001 - a rung must not kill the phase
+                        p = {"target_tokens": size, "concurrency": 1,
+                             "output_tokens": args.output_tokens, "ok": 0, "failed": 1,
+                             "errors": [f"{type(exc).__name__}: {exc}"]}
+                    ladder_points.append(p)
+                    if p["failed"]:
+                        # Classify why this rung failed (ERROR/OOM/CRASH/HANG).
+                        code, detail = diagnose(f"speed {size}")
+                        cause = f" ({detail})" if detail else ""
+                        warnings.append(
+                            f"[{code}] Speed point {p['target_tokens']} tokens failed{cause}: "
+                            f"{'; '.join(p['errors'])}")
+                        remaining = sizes[i + 1:]
+                        if remaining:
+                            warnings.append(f"Speed ladder stopped after the {size}-token "
+                                            f"failure; skipped larger rungs: {remaining}.")
+                        break
+                    revive_state["last_alive"] = dt.datetime.now(dt.timezone.utc)
 
         # Concurrency sweep: a fixed-size prompt sent at increasing concurrency
         # levels. Unlike the prompt-size ladder (monotonic, so it stops at the
@@ -1521,54 +1539,63 @@ def main() -> None:
         # exceeded, or OOM) is recorded and the sweep continues to the next.
         if args.skip_concurrency:
             concurrency_points = []
-        elif revive("before concurrency")[0] == "dead":
-            warnings.append("Concurrency sweep skipped: server down and not restartable.")
-            concurrency_points = []
         else:
-            try:
-                levels = [int(x) for x in str(args.concurrency_levels).split(",") if x.strip()]
-            except ValueError:
-                levels = [1, 2, 4, 8, 16, 32, 64]
-                warnings.append(f"Bad --concurrency-levels {args.concurrency_levels!r}; "
-                                "using default 1,2,4,8,16,32,64.")
-            # Only sweep concurrency levels the recipe's server will actually admit.
-            # A recipe with no declared cap keeps the full requested ladder.
-            concurrency_cap = detect_max_concurrency(recipe, defaults)
-            if concurrency_cap is not None:
-                dropped = [c for c in levels if c > concurrency_cap]
-                levels = [c for c in levels if c <= concurrency_cap]
-                if not levels:  # all requested levels exceed the cap
-                    levels = [concurrency_cap]
-                if dropped:
-                    warnings.append(
-                        f"Concurrency levels {dropped} exceed the recipe's declared max "
-                        f"concurrency ({concurrency_cap}); skipped.")
-            csize = args.concurrency_prompt
-            cap_note = f" (recipe max {concurrency_cap})" if concurrency_cap is not None else ""
-            log(f"Concurrency sweep: {csize}-token prompt x concurrency {levels}{cap_note}")
-            concurrency_points = []
-            for c in levels:
+            cc_status, cc_code, cc_detail = ensure("before concurrency")
+            if cc_status == "down":
+                warnings.append(f"[{cc_code}] Concurrency sweep skipped: server could "
+                                f"not be started ({cc_detail}).")
+                concurrency_points = []
+            else:
                 try:
-                    p = run_speed_point(base_url, served, csize, c, args.output_tokens,
-                                        args.request_timeout, args.seed, outdir)
-                except Exception as exc:  # noqa: BLE001 - a level must not kill the phase
-                    p = {"target_tokens": csize, "concurrency": c,
-                         "output_tokens": args.output_tokens, "ok": 0, "failed": c,
-                         "errors": [f"{type(exc).__name__}: {exc}"]}
-                concurrency_points.append(p)
-                if p["failed"]:
-                    oom = recent_oom_events(
-                        revive_state["last_alive"] - dt.timedelta(seconds=60))
-                    cause = f" (server OOM: {oom[-1][-150:]})" if oom else ""
-                    warnings.append(
-                        f"Concurrency {c}: {p['failed']} request(s) failed{cause}.")
-                    # A dead server must be revived before the next level; if it
-                    # can't be, stop the sweep (higher levels would only fail).
-                    if revive("after concurrency failure")[0] == "dead":
-                        warnings.append("Concurrency sweep stopped: server down and "
-                                        "not restartable.")
+                    levels = [int(x) for x in str(args.concurrency_levels).split(",") if x.strip()]
+                except ValueError:
+                    levels = [1, 2, 4, 8, 16, 32, 64]
+                    warnings.append(f"Bad --concurrency-levels {args.concurrency_levels!r}; "
+                                    "using default 1,2,4,8,16,32,64.")
+                # Only sweep concurrency levels the recipe's server will actually admit.
+                # A recipe with no declared cap keeps the full requested ladder.
+                concurrency_cap = detect_max_concurrency(recipe, defaults)
+                if concurrency_cap is not None:
+                    dropped = [c for c in levels if c > concurrency_cap]
+                    levels = [c for c in levels if c <= concurrency_cap]
+                    if not levels:  # all requested levels exceed the cap
+                        levels = [concurrency_cap]
+                    if dropped:
+                        warnings.append(
+                            f"Concurrency levels {dropped} exceed the recipe's declared max "
+                            f"concurrency ({concurrency_cap}); skipped.")
+                csize = args.concurrency_prompt
+                cap_note = f" (recipe max {concurrency_cap})" if concurrency_cap is not None else ""
+                log(f"Concurrency sweep: {csize}-token prompt x concurrency {levels}{cap_note}")
+                concurrency_points = []
+                for c in levels:
+                    # Ensure the server is up before each level; if it can't be
+                    # started, record this level down and stop (higher levels would
+                    # only fail too).
+                    lv_status, lv_code, lv_detail = ensure(f"before concurrency {c}")
+                    if lv_status == "down":
+                        concurrency_points.append({
+                            "target_tokens": csize, "concurrency": c,
+                            "output_tokens": args.output_tokens, "ok": 0, "failed": c,
+                            "errors": [f"[{lv_code}] server down ({lv_detail})"]})
+                        warnings.append(f"[{lv_code}] Concurrency {c} skipped: server could "
+                                        f"not be started; sweep stopped.")
                         break
-                revive_state["last_alive"] = dt.datetime.now(dt.timezone.utc)
+                    try:
+                        p = run_speed_point(base_url, served, csize, c, args.output_tokens,
+                                            args.request_timeout, args.seed, outdir)
+                    except Exception as exc:  # noqa: BLE001 - a level must not kill the phase
+                        p = {"target_tokens": csize, "concurrency": c,
+                             "output_tokens": args.output_tokens, "ok": 0, "failed": c,
+                             "errors": [f"{type(exc).__name__}: {exc}"]}
+                    concurrency_points.append(p)
+                    if p["failed"]:
+                        code, detail = diagnose(f"concurrency {c}")
+                        cause = f" ({detail})" if detail else ""
+                        warnings.append(
+                            f"[{code}] Concurrency {c}: {p['failed']} request(s) failed{cause}.")
+                    else:
+                        revive_state["last_alive"] = dt.datetime.now(dt.timezone.utc)
 
     finally:
         if not args.skip_run:
