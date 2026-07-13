@@ -233,3 +233,10 @@ models:
     runtime: vllm-distributed
     tp: 1
     min_nodes: 1
+  - name: colibri__glm-5.2-int4-mtp
+    enabled: true
+    model: mateogrgic/GLM-5.2-colibri-int4-with-int8-mtp
+    registry: local
+    runtime: llama-cpp
+    tp: ~
+    min_nodes: 1

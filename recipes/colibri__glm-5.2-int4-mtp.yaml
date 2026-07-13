@@ -1,0 +1,108 @@
+# Colibri GLM-5.2 recipe for one NVIDIA DGX Spark / GB10.
+#
+# Requirements:
+# - About 400 GB free on local NVMe for model download/cache.
+# - Export COLI_API_KEY before launch.
+# - First launch installs build tools, builds Colibri, and downloads model.
+#
+# Run:
+#   export COLI_API_KEY='replace-with-a-secret'
+#   sparkrun run ./colibri__glm-5.2-int4-mtp.yaml
+
+recipe_version: "2"
+
+model: mateogrgic/GLM-5.2-colibri-int4-with-int8-mtp
+
+# SparkRun has no Colibri runtime. Its llama-cpp runtime is used only as
+# generic single-node container orchestration. Command below runs Colibri.
+runtime: llama-cpp
+
+builder: docker-pull
+
+container: ubuntu:24.04
+
+mode: solo
+min_nodes: 1
+max_nodes: 1
+
+metadata:
+  description: "GLM-5.2 744B MoE using Colibri int4 with int8 MTP, CPU-only on one DGX Spark / GB10. Requires about 400 GB free local NVMe."
+  model_params: 744B
+  model_dtype: int4
+  engine: colibri
+  engine_source: JustVugg/colibri
+  engine_commit: 6d3ed7e62b1b4c05d8e656a5263e91b983aa26ba
+
+defaults:
+  host: 0.0.0.0
+  port: 8000
+  model_id: glm-5.2-colibri
+  context_length: 4096
+  policy: balanced
+  max_tokens: 1024
+  max_queue: 8
+  queue_timeout: 300
+  kv_slots: 1
+
+env:
+  COLI_CUDA: "0"
+  COLI_API_KEY: "${COLI_API_KEY}"
+  PYTHONUNBUFFERED: "1"
+
+pre_exec:
+  - >-
+    apt-get update &&
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends
+    build-essential ca-certificates git python3 &&
+    rm -rf /var/lib/apt/lists/*
+  - >-
+    rm -rf /opt/colibri &&
+    git init /opt/colibri &&
+    cd /opt/colibri &&
+    git remote add origin https://github.com/JustVugg/colibri.git &&
+    git fetch --depth 1 origin 6d3ed7e62b1b4c05d8e656a5263e91b983aa26ba &&
+    git checkout --detach FETCH_HEAD
+  - >-
+    cd /opt/colibri/c &&
+    make -s clean &&
+    make -s glm ARCH=native
+
+command: |
+  set -eu
+
+  MODEL_CACHE="/cache/huggingface/hub/models--mateogrgic--GLM-5.2-colibri-int4-with-int8-mtp"
+
+  if [ -f "$MODEL_CACHE/refs/main" ]; then
+    REVISION="$(cat "$MODEL_CACHE/refs/main")"
+    MODEL_DIR="$MODEL_CACHE/snapshots/$REVISION"
+  else
+    MODEL_DIR="$(find "$MODEL_CACHE/snapshots" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+  fi
+
+  test -n "$MODEL_DIR"
+  test -f "$MODEL_DIR/tokenizer.json"
+
+  MTP_SIZES="$(
+    for file in "$MODEL_DIR"/out-mtp-*; do
+      stat -Lc '%s' "$file"
+    done | sort -n | tr '\n' ' '
+  )"
+
+  if [ "$MTP_SIZES" != "1065950496 3527131672 5366238584 " ]; then
+    echo "ERROR: Expected three int8 MTP head files were not found." >&2
+    exit 1
+  fi
+
+  exec python3 /opt/colibri/c/coli serve \
+    --model "$MODEL_DIR" \
+    --host {host} \
+    --port {port} \
+    --model-id {model_id} \
+    --auto-tier \
+    --gpu none \
+    --ctx {context_length} \
+    --policy {policy} \
+    --ngen {max_tokens} \
+    --max-queue {max_queue} \
+    --queue-timeout {queue_timeout} \
+    --kv-slots {kv_slots}
