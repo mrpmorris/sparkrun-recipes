@@ -4,7 +4,8 @@
 # Mirrors benchllm-all.sh's two recipe sources:
 #   1. models.yaml — registry recipe entries (`- name:` blocks). Each block's
 #      `model:` repo is fetched. A block whose `tp:` is numeric and > 1 is
-#      skipped (needs multi-GPU tensor parallelism, can't run on this box).
+#      skipped (needs multi-GPU tensor parallelism, can't run on this box), and
+#      a block with `enabled: false` is skipped (default is enabled).
 #   2. recipes/*.yaml|*.yml — local recipe files (run by path in benchllm-all).
 #      Each file's top-level `model:` is fetched, skipped if its
 #      `tensor_parallel:` default is > 1. External speculative-decoding
@@ -60,11 +61,13 @@ add_spec() {  # $1=repo  [$2=revision]
 if [[ -f "$MODELS_YAML" ]]; then
   while IFS= read -r repo; do add_spec "$repo"; done < <(awk '
     function flush() {
-      if (model == "") { tp = ""; return }
-      if (tp ~ /^[0-9]+$/ && tp + 0 > 1) {
+      if (model == "") { tp = ""; enabled = ""; return }
+      if (enabled == "false") {
+        print "  skip (disabled): " model > "/dev/stderr"
+      } else if (tp ~ /^[0-9]+$/ && tp + 0 > 1) {
         print "  skip (tp=" tp "): " model > "/dev/stderr"
       } else { print model }
-      model = ""; tp = ""
+      model = ""; tp = ""; enabled = ""
     }
     /^[[:space:]]*-[[:space:]]*name:/ { flush() }
     /^[[:space:]]*model:[[:space:]]*/ {
@@ -76,6 +79,11 @@ if [[ -f "$MODELS_YAML" ]]; then
       v = $0; sub(/^[[:space:]]*tp:[[:space:]]*/, "", v)
       sub(/#.*/, "", v); gsub(/[\042\047[:space:]]/, "", v)
       tp = v
+    }
+    /^[[:space:]]*enabled:[[:space:]]*/ {
+      v = $0; sub(/^[[:space:]]*enabled:[[:space:]]*/, "", v)
+      sub(/#.*/, "", v); gsub(/[\042\047[:space:]]/, "", v)
+      enabled = tolower(v)
     }
     END { flush() }
   ' "$MODELS_YAML")

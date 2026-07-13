@@ -43,17 +43,24 @@ recipes=()
 # 1. Registry recipe names from models.yaml. Lines look like:
 #      models:
 #        - name: @eugr/some-recipe
+#          enabled: true
 #          model: ...
-#    Comments (#...) and blank lines are ignored; values may be quoted.
+#    A block with `enabled: false` is skipped (default is enabled). Comments
+#    (#...) and blank lines are ignored; values may be quoted. The awk walks
+#    per `- name:` block so it can pair each name with its own enabled flag.
 if [[ -f "$MODELS_YAML" ]]; then
   while IFS= read -r name; do
     [[ -n "$name" ]] && recipes+=("$name")
-  done < <(sed -E \
-             -e 's/#.*$//' \
-             -e '/^[[:space:]]*-[[:space:]]*name:[[:space:]]*/!d' \
-             -e 's/^[[:space:]]*-[[:space:]]*name:[[:space:]]*//' \
-             -e 's/^["'\'']//; s/["'\'']?[[:space:]]*$//' \
-             "$MODELS_YAML")
+  done < <(awk '
+    function flush() { if (name != "" && enabled != "false") print name; name=""; enabled="" }
+    /^[[:space:]]*-[[:space:]]*name:/ {
+      flush(); v=$0; sub(/^[[:space:]]*-[[:space:]]*name:[[:space:]]*/,"",v)
+      sub(/#.*/,"",v); gsub(/[\042\047]/,"",v); gsub(/[[:space:]]+$/,"",v); name=v }
+    /^[[:space:]]*enabled:[[:space:]]*/ {
+      v=$0; sub(/^[[:space:]]*enabled:[[:space:]]*/,"",v)
+      sub(/#.*/,"",v); gsub(/[\042\047[:space:]]/,"",v); enabled=tolower(v) }
+    END { flush() }
+  ' "$MODELS_YAML")
 else
   echo "benchllm-all: models file not found (skipping): $MODELS_YAML" >&2
 fi
