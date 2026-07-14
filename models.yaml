@@ -87,7 +87,9 @@ models:
     tp: ~
     min_nodes: 1
   - name: @atlas/nemotron-3-super-120b-a12b-nvfp4
-    enabled: true
+    # Disabled: OOMs on inference buffers at stock batch-8 on a single GB10.
+    # Use recipes/atlas__nemotron-3-super-120b-a12b-nvfp4-batch4.yaml instead.
+    enabled: false
     model: nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4
     registry: atlas
     runtime: atlas
