@@ -83,6 +83,23 @@ echo "benchllm-all: ${#recipes[@]} recipe(s) to benchmark:"
 printf '  - %s\n' "${recipes[@]}"
 echo
 
+# --- Ensure no stale workload is holding the box between models -----------
+# A sparkrun serve that crashes (or a Ctrl-C'd run) leaves its container up as
+# a `sleep infinity` shell, still holding unified memory. If the next model
+# launches into that, it can't fit its KV cache and the driver then polls a
+# dead endpoint for its whole watchdog timeout ("...waiting for endpoint").
+# Tearing down between models keeps every run starting from a clean box.
+SPARKRUN="${SPARKRUN:-sparkrun}"
+BENCHLLM_TEARDOWN="${BENCHLLM_TEARDOWN:-1}"
+teardown_workloads() {
+  [[ "$BENCHLLM_TEARDOWN" == "1" ]] || return 0
+  echo "benchllm-all: tearing down any running sparkrun workloads..."
+  # Best-effort: never let cleanup failure abort the batch (set -e is active).
+  "$SPARKRUN" stop --all >/dev/null 2>&1 || true
+}
+
+teardown_workloads   # clean slate before the first recipe
+
 # --- Run each recipe, continuing past failures -----------------------------
 declare -a ok_list=() fail_list=()
 for recipe in "${recipes[@]}"; do
@@ -96,6 +113,9 @@ for recipe in "${recipes[@]}"; do
     echo "benchllm-all: !!! $recipe FAILED (exit $rc)" >&2
     fail_list+=("$recipe")
   fi
+  # Always tear down this recipe's workload before the next one launches, so a
+  # crashed or killed serve can't poison the following model's memory budget.
+  teardown_workloads
   echo
 done
 
