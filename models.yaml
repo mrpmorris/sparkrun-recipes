@@ -152,7 +152,8 @@ models:
     tp: ~
     min_nodes: 1
   - name: @atlas/qwen3.6-27b-nvfp4
-    enabled: true
+    # Disabled, the benchmarks lie about how fast it is outputting
+    enabled: false
     model: unsloth/Qwen3.6-27B-NVFP4
     registry: atlas
     runtime: atlas

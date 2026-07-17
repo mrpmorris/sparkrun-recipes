@@ -3,6 +3,7 @@
 
 import argparse
 import json
+import math
 import os
 import re
 import textwrap
@@ -36,6 +37,10 @@ INTEL_METRICS = [
     "MBPP",
 ]
 
+# BFCL v4 OVERALL (weighted aggregate) from the tool-calling section. Kept out
+# of INTEL_METRICS so it does not shift the lm-eval Mean used for row ordering.
+TOOL_METRIC = "BFCL overall"
+
 PURPOSES = {
     "MMLU": "general knowledge",
     "GSM8K strict": "math reasoning",
@@ -46,6 +51,7 @@ PURPOSES = {
     "HellaSwag norm": "commonsense",
     "HumanEval": "coding",
     "MBPP": "coding",
+    TOOL_METRIC: "tool calling",
 }
 
 
@@ -95,6 +101,12 @@ def load_local_markdown(input_dir: Path) -> list[tuple[str, str]]:
     for file_path in sorted(input_dir.glob("*.md")):
         reports.append((file_path.name, file_path.read_text(encoding="utf-8")))
     return reports
+
+
+def format_prompt_size(tokens: float) -> str:
+    if tokens < 1024:
+        return f"{int(tokens)}B"
+    return f"{math.ceil(tokens / 1024)}K"
 
 
 def label_from_filename(filename: str) -> str:
@@ -195,6 +207,33 @@ def parse_intelligence_scores(text: str) -> dict[str, float]:
     return scores
 
 
+def parse_tool_call_overall(text: str) -> float | None:
+    in_section = False
+
+    for line in text.splitlines():
+        if line.startswith("## Tool calling"):
+            in_section = True
+            continue
+
+        if in_section and line.startswith("## "):
+            break
+
+        if not in_section:
+            continue
+
+        if not line.strip().startswith("|"):
+            continue
+
+        cols = split_md_row(line)
+        if len(cols) < 2:
+            continue
+
+        if cols[0].upper() == "OVERALL":
+            return parse_float(cols[1])
+
+    return None
+
+
 def parse_speed_rows(text: str) -> list[dict[str, float]]:
     rows = []
     in_speed = False
@@ -234,6 +273,44 @@ def parse_speed_rows(text: str) -> list[dict[str, float]]:
                 "ttft_s": ttft_s,
                 "tpot_ms": tpot_ms,
                 "generation_tps": generation_tps,
+            }
+        )
+
+    return rows
+
+
+def parse_concurrency_rows(text: str) -> list[dict[str, float]]:
+    rows = []
+    in_section = False
+
+    for line in text.splitlines():
+        if line.startswith("## Throughput vs concurrency"):
+            in_section = True
+            continue
+
+        if in_section and line.startswith("## "):
+            break
+
+        if not in_section:
+            continue
+
+        if not line.strip().startswith("|"):
+            continue
+
+        cols = split_md_row(line)
+        if len(cols) < 8:
+            continue
+
+        concurrency = parse_int(cols[0])
+        aggregate_tps = parse_float(cols[6])
+
+        if concurrency is None or aggregate_tps is None:
+            continue
+
+        rows.append(
+            {
+                "concurrency": concurrency,
+                "aggregate_tps": aggregate_tps,
             }
         )
 
@@ -293,7 +370,7 @@ def build_intelligence_figure(
     df = df.sort_values("Mean", ascending=False)
 
     table_rows = []
-    for test in INTEL_METRICS:
+    for test in INTEL_METRICS + [TOOL_METRIC]:
         ranked = df.sort_values([test, "Mean"], ascending=False)
         top5 = ranked.head(5).index.tolist()
         while len(top5) < 5:
@@ -326,7 +403,7 @@ def build_intelligence_figure(
     for col in ["1st", "2nd", "3rd", "4th", "5th"]:
         wrapped_table[col] = wrapped_table[col].apply(lambda x: wrap_text(x, 21))
 
-    plot_cols = INTEL_METRICS + ["Mean"]
+    plot_cols = INTEL_METRICS + [TOOL_METRIC, "Mean"]
     plot_df = df[plot_cols]
 
     fig = plt.figure(figsize=(22, 18))
@@ -353,7 +430,7 @@ def build_intelligence_figure(
         label.set_color(color_map.get(name, "black"))
 
     ax.set_title("Sparkrun intelligence scores, failures as zero", fontsize=18, pad=16)
-    ax.set_xlabel("lm-eval metric", fontsize=12)
+    ax.set_xlabel("Metric (lm-eval, plus BFCL v4 tool calling)", fontsize=12)
     ax.set_ylabel("Benchmark", fontsize=12)
 
     ax.set_xticks([x - 0.5 for x in range(1, len(plot_cols))], minor=True)
@@ -433,7 +510,8 @@ def build_intelligence_figure(
         "Ranking rule:\n"
         "- Failures counted as 0\n"
         "- Top 5 chosen by score for each test\n"
-        "- Ties broken by Mean, then current order",
+        "- Ties broken by Mean, then current order\n"
+        "- Mean covers lm-eval metrics only (excludes BFCL)",
         va="top",
         ha="left",
         fontsize=11,
@@ -450,8 +528,13 @@ def build_line_figure(
     log_y: bool,
     color_map: dict[str, str],
     y_tick_step: float | None = None,
+    x_col: str = "prompt_tokens",
+    x_label: str = "Prompt tokens",
+    x_tick_formatter=format_prompt_size,
+    x_tick_rotation: float = 90,
 ) -> plt.Figure:
-    fig, ax = plt.subplots(figsize=(18, 10))
+    # Portrait page (the intelligence page keeps its own landscape size).
+    fig, ax = plt.subplots(figsize=(12, 16))
 
     if speed_df.empty:
         ax.text(0.5, 0.5, "No numeric speed rows found", ha="center", va="center")
@@ -460,7 +543,7 @@ def build_line_figure(
 
     pivot = (
         speed_df.pivot_table(
-            index="prompt_tokens",
+            index=x_col,
             columns="benchmark",
             values=value_col,
             aggfunc="first",
@@ -471,8 +554,8 @@ def build_line_figure(
     x_values = list(pivot.index)
     max_x = max(x_values)
 
-    # Draw each series, remembering its colour and last data point so the
-    # right-hand label can match and connect to it.
+    # Draw each series, remembering its colour and first data point so the
+    # left-hand label can match and connect to it.
     label_points = []
     for benchmark in pivot.columns:
         series = pivot[benchmark].dropna()
@@ -482,17 +565,25 @@ def build_line_figure(
         color = color_map.get(benchmark)
         ax.plot(series.index, series.values, marker="o", linewidth=2, color=color)
 
-        last_x = series.index[-1]
-        last_y = float(series.iloc[-1])
-        label_points.append((benchmark, last_x, last_y, color))
+        first_x = series.index[0]
+        first_y = float(series.iloc[0])
+        label_points.append((benchmark, first_x, first_y, color))
 
     ax.set_xscale("log", base=2)
     if log_y:
         ax.set_yscale("log")
 
     ax.set_xticks(x_values)
-    ax.set_xticklabels([f"{int(x):,}" for x in x_values], rotation=30, ha="right")
-    ax.set_xlabel("Prompt tokens")
+    ax.set_xticklabels(
+        [x_tick_formatter(x) for x in x_values],
+        rotation=x_tick_rotation,
+        ha="center",
+    )
+    ax.set_xlabel(x_label)
+    # The y-axis moves to the right so the left side is clear for the model
+    # name column.
+    ax.yaxis.tick_right()
+    ax.yaxis.set_label_position("right")
     ax.set_ylabel(y_label)
     ax.set_title(title)
     if y_tick_step and not log_y:
@@ -506,20 +597,21 @@ def build_line_figure(
     ax.grid(True, which="both", axis="both")
     ax.set_xlim(min(x_values) * 0.85, max_x * 1.05)
 
-    # Reserve room on the right for the label column (the longest recipe names
-    # run ~50 characters). Fix the axes box first so the transforms below are
-    # final before we measure where each line ends.
-    margin_top, margin_bottom = 0.94, 0.09
-    fig.subplots_adjust(left=0.05, right=0.74, top=margin_top, bottom=margin_bottom)
+    # Reserve room on the left for the label column (the longest recipe names
+    # run ~50 characters, ~3.7in at 9pt on the narrower portrait page). Fix the
+    # axes box first so the transforms below are final before we measure where
+    # each line starts.
+    margin_top, margin_bottom = 0.96, 0.06
+    fig.subplots_adjust(left=0.34, right=0.92, top=margin_top, bottom=margin_bottom)
 
-    # List the model names in a column to the right of the plot. Each name sits
-    # at the same height as its series' last data point; only where names would
+    # List the model names in a column to the left of the plot. Each name sits
+    # at the same height as its series' first data point; only where names would
     # collide are they merged into a stack centred on the group's mean height.
-    # A thin colour-matched leader line joins each name to its last data point.
+    # A thin colour-matched leader line joins each name to its first data point.
     if label_points:
         n = len(label_points)
 
-        # Axes-fraction height of each series' last data point (handles the
+        # Axes-fraction height of each series' first data point (handles the
         # log/linear y-axis transparently via the finalised transforms).
         fig.canvas.draw()
         inv_axes = ax.transAxes.inverted()
@@ -571,12 +663,12 @@ def build_line_figure(
         if positions[-1] > hi:
             positions = [p - (positions[-1] - hi) for p in positions]
 
-        label_x = 1.015
+        label_x = -0.015
         for (benchmark, point_x, point_y, color, _frac), label_y in zip(
             items, positions
         ):
-            # Leader ends exactly at the label's left-centre anchor (no bbox
-            # shrink), so it always meets the very left of the name.
+            # Leader ends exactly at the label's right-centre anchor (no bbox
+            # shrink), so it always meets the very right of the name.
             leader = ConnectionPatch(
                 xyA=(point_x, point_y),
                 coordsA=ax.transData,
@@ -595,7 +687,7 @@ def build_line_figure(
                 benchmark,
                 transform=ax.transAxes,
                 va="center",
-                ha="left",
+                ha="right",
                 fontsize=9,
                 color=color,
                 clip_on=False,
@@ -604,14 +696,18 @@ def build_line_figure(
     return fig
 
 
-def build_dataframes(reports: list[tuple[str, str]]) -> tuple[pd.DataFrame, pd.DataFrame]:
+def build_dataframes(
+    reports: list[tuple[str, str]],
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     intel_rows = []
     speed_rows = []
+    concurrency_rows = []
 
     for filename, text in reports:
         benchmark = label_from_filename(filename)
 
         scores = parse_intelligence_scores(text)
+        scores[TOOL_METRIC] = parse_tool_call_overall(text) or 0.0
         scores["benchmark"] = benchmark
         intel_rows.append(scores)
 
@@ -619,8 +715,12 @@ def build_dataframes(reports: list[tuple[str, str]]) -> tuple[pd.DataFrame, pd.D
             row["benchmark"] = benchmark
             speed_rows.append(row)
 
+        for row in parse_concurrency_rows(text):
+            row["benchmark"] = benchmark
+            concurrency_rows.append(row)
+
     intel_df = pd.DataFrame(intel_rows).set_index("benchmark")
-    intel_df = intel_df.reindex(columns=INTEL_METRICS).fillna(0.0)
+    intel_df = intel_df.reindex(columns=INTEL_METRICS + [TOOL_METRIC]).fillna(0.0)
 
     speed_df = pd.DataFrame(speed_rows)
     if not speed_df.empty:
@@ -628,7 +728,11 @@ def build_dataframes(reports: list[tuple[str, str]]) -> tuple[pd.DataFrame, pd.D
             ["benchmark", "prompt_tokens", "ttft_s", "tpot_ms", "generation_tps"]
         ]
 
-    return intel_df, speed_df
+    concurrency_df = pd.DataFrame(concurrency_rows)
+    if not concurrency_df.empty:
+        concurrency_df = concurrency_df[["benchmark", "concurrency", "aggregate_tps"]]
+
+    return intel_df, speed_df, concurrency_df
 
 
 def main() -> None:
@@ -649,16 +753,45 @@ def main() -> None:
     if not reports:
         raise RuntimeError("No markdown benchmark reports found")
 
-    intel_df, speed_df = build_dataframes(reports)
+    intel_df, speed_df, concurrency_df = build_dataframes(reports)
     cmap = make_score_cmap(args.gradient)
 
-    speed_names = (
-        sorted(speed_df["benchmark"].unique()) if not speed_df.empty else []
-    )
-    color_map = build_color_map(speed_names)
+    names = set()
+    if not speed_df.empty:
+        names.update(speed_df["benchmark"].unique())
+    if not concurrency_df.empty:
+        names.update(concurrency_df["benchmark"].unique())
+    color_map = build_color_map(sorted(names))
 
     with PdfPages(args.output) as pdf:
         fig = build_intelligence_figure(intel_df, cmap, color_map)
+        pdf.savefig(fig, bbox_inches="tight")
+        plt.close(fig)
+
+        fig = build_line_figure(
+            speed_df,
+            "generation_tps",
+            "Sparkrun benchmark TPS by prompt size",
+            "TPS, generation tokens/s",
+            log_y=False,
+            color_map=color_map,
+            y_tick_step=5,
+        )
+        pdf.savefig(fig, bbox_inches="tight")
+        plt.close(fig)
+
+        fig = build_line_figure(
+            concurrency_df,
+            "aggregate_tps",
+            "Sparkrun benchmark aggregate TPS by concurrency (1024-token prompts)",
+            "Aggregate generation tokens/s",
+            log_y=False,
+            color_map=color_map,
+            x_col="concurrency",
+            x_label="Concurrent requests",
+            x_tick_formatter=lambda x: f"{int(x):,}",
+            x_tick_rotation=0,
+        )
         pdf.savefig(fig, bbox_inches="tight")
         plt.close(fig)
 
@@ -680,18 +813,6 @@ def main() -> None:
             "TPOT ms",
             log_y=False,
             color_map=color_map,
-        )
-        pdf.savefig(fig, bbox_inches="tight")
-        plt.close(fig)
-
-        fig = build_line_figure(
-            speed_df,
-            "generation_tps",
-            "Sparkrun benchmark TPS by prompt size",
-            "TPS, generation tokens/s",
-            log_y=False,
-            color_map=color_map,
-            y_tick_step=5,
         )
         pdf.savefig(fig, bbox_inches="tight")
         plt.close(fig)
