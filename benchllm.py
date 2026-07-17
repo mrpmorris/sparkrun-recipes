@@ -584,21 +584,30 @@ def stream_request(base_url: str, model: str, prompt: str, max_tokens: int,
     ttft = None
     usage = None
     chunk_count = 0
-    for line in r.iter_lines(decode_unicode=True):
-        if not line or not line.startswith("data:"):
-            continue
-        data = line[5:].strip()
-        if data == "[DONE]":
-            break
-        obj = json.loads(data)
-        if obj.get("usage"):
-            usage = obj["usage"]
-        for choice in obj.get("choices", []):
-            delta = choice.get("delta") or {}
-            if delta.get("content") or delta.get("reasoning_content") or delta.get("reasoning"):
-                chunk_count += 1
-                if ttft is None:
-                    ttft = time.perf_counter() - t0
+    # Hard wall-clock deadline for the whole stream. The (30, timeout) requests
+    # timeout above is per-read: a server that holds the stream open and keeps
+    # trickling bytes never trips it, and the worker thread blocks forever.
+    deadline = t0 + timeout
+    try:
+        for line in r.iter_lines(decode_unicode=True):
+            if time.perf_counter() > deadline:
+                raise TimeoutError(f"stream exceeded {timeout}s wall-clock deadline")
+            if not line or not line.startswith("data:"):
+                continue
+            data = line[5:].strip()
+            if data == "[DONE]":
+                break
+            obj = json.loads(data)
+            if obj.get("usage"):
+                usage = obj["usage"]
+            for choice in obj.get("choices", []):
+                delta = choice.get("delta") or {}
+                if delta.get("content") or delta.get("reasoning_content") or delta.get("reasoning"):
+                    chunk_count += 1
+                    if ttft is None:
+                        ttft = time.perf_counter() - t0
+    finally:
+        r.close()
     t_end = time.perf_counter()
 
     prompt_tokens = (usage or {}).get("prompt_tokens")
@@ -640,13 +649,23 @@ def run_speed_point(base_url: str, model: str, size: int, concurrency: int,
     ]
     results: list[dict] = []
     errors: list[str] = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=concurrency) as ex:
-        futures = [ex.submit(stream_request, base_url, model, pr, output_tokens, timeout) for pr in prompts]
-        for fut in concurrent.futures.as_completed(futures):
+    # No `with` block: __exit__ would join worker threads, so one wedged request
+    # (or a Ctrl-C during the join) hangs the whole run. Instead give as_completed
+    # a deadline and abandon any straggler threads.
+    ex = concurrent.futures.ThreadPoolExecutor(max_workers=concurrency)
+    futures = [ex.submit(stream_request, base_url, model, pr, output_tokens, timeout) for pr in prompts]
+    try:
+        for fut in concurrent.futures.as_completed(futures, timeout=timeout + 120):
             try:
                 results.append(fut.result())
             except Exception as exc:  # noqa: BLE001 - collect failures per request
                 errors.append(f"{type(exc).__name__}: {exc}"[:300])
+    except concurrent.futures.TimeoutError:
+        stuck = sum(1 for f in futures if not f.done())
+        errors.append(f"TimeoutError: {stuck} request(s) still running after {timeout + 120}s; abandoned")
+        log(f"  WARNING: {stuck} stuck request(s) abandoned after {timeout + 120}s")
+    finally:
+        ex.shutdown(wait=False, cancel_futures=True)
 
     point: dict = {"target_tokens": size, "concurrency": concurrency,
                    "output_tokens": output_tokens, "ok": len(results), "failed": len(errors),

@@ -1,0 +1,103 @@
+# Source wrapper:
+# https://github.com/r0b0tlab/qwen36-35b-a3b-nvfp4-sm121-vllm
+#
+# Model:
+# https://huggingface.co/nvidia/Qwen3.6-35B-A3B-NVFP4
+#
+# The upstream repo builds a thin image (Dockerfile.v025) whose ENTRYPOINT
+# (start_vllm_v025.sh) just translates env vars into a `vllm serve` command.
+# sparkrun runs its own command via `bash -c`, so we pull the prebuilt sm121
+# base image directly and replicate that serve command here. Defaults below
+# mirror scripts/launch.sh (the baseline throughput profile: 64K ctx, seqs 32).
+
+recipe_version: '2'
+
+model: nvidia/Qwen3.6-35B-A3B-NVFP4
+
+runtime: vllm
+builder: eugr
+
+# arm64 / sm_121 (GB10) vLLM 0.25.0 image the upstream Dockerfile builds FROM.
+# Pullable from ghcr, so no local build step is needed.
+container: ghcr.io/r0b0tlab/vllm-v0250-cu130-sm121:v0.25.0-cu130-sm121-arm64-702f4814-r2
+
+# Clear any image ENTRYPOINT so sparkrun's `bash -c <cmd>` runs cleanly
+# (avoids the exit-126 "cannot execute binary file" seen with images whose
+# entrypoint is a shell/script). Our command invokes `vllm` on PATH directly.
+executor_config:
+  entrypoint: ""
+
+min_nodes: 1
+max_nodes: 1
+
+metadata:
+  description: "Qwen3.6-35B-A3B-NVFP4 (nvidia) via r0b0tlab sm121 vLLM 0.25.0 image - modelopt_mixed W4A16_NVFP4, FP8 KV, MTP K=2 (triton draft MoE), flashinfer backends, 64K ctx"
+  model_params: 35B-A3B
+  model_dtype: nvfp4
+
+defaults:
+  host: 0.0.0.0
+  port: 8000
+
+  served_model_name: Qwen3.6-35B-A3B-NVFP4
+
+  tensor_parallel: 1
+  pipeline_parallel: 1
+
+  # launch.sh baseline throughput profile. For the max-context profile the repo
+  # uses max_model_len 262144 with max_num_seqs 1 (see launch_max_context.sh);
+  # override with -o max_model_len=262144 -o max_num_seqs=1.
+  gpu_memory_utilization: 0.88
+  max_model_len: 65536
+  max_num_seqs: 32
+  max_num_batched_tokens: 32768
+
+  # nvidia NVFP4 checkpoint is ModelOpt-packed (W4A16_NVFP4), not
+  # compressed-tensors. FP8 KV cache per the upstream profile.
+  quantization: modelopt_mixed
+  kv_cache_dtype: fp8
+
+  # flashinfer backends specific to this sm121 image build.
+  attention_backend: flashinfer
+  moe_backend: flashinfer_b12x
+  linear_backend: flashinfer_cutlass
+
+  reasoning_parser: qwen3
+  tool_call_parser: qwen3_xml
+
+  # Native MTP (built into the model), triton draft MoE. K=2 per upstream.
+  # No external drafter, so no distribution_config drafter pinning needed.
+  speculative_config: '{"method":"mtp","num_speculative_tokens":2,"moe_backend":"triton"}'
+
+env:
+  VLLM_TARGET_DEVICE: cuda
+  VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
+  # flashinfer JIT compile parallelism (from launch.sh).
+  MAX_JOBS: "6"
+  FLASHINFER_NVCC_THREADS: "2"
+  HF_TOKEN: "${HF_TOKEN}"
+
+command: |
+  vllm serve {model} \
+    --served-model-name {served_model_name} \
+    --host {host} \
+    --port {port} \
+    -tp {tensor_parallel} \
+    -pp {pipeline_parallel} \
+    --trust-remote-code \
+    --quantization {quantization} \
+    --kv-cache-dtype {kv_cache_dtype} \
+    --attention-backend {attention_backend} \
+    --moe-backend {moe_backend} \
+    --linear-backend {linear_backend} \
+    --gpu-memory-utilization {gpu_memory_utilization} \
+    --max-model-len {max_model_len} \
+    --max-num-seqs {max_num_seqs} \
+    --max-num-batched-tokens {max_num_batched_tokens} \
+    --enable-chunked-prefill \
+    --enable-prefix-caching \
+    --speculative-config '{speculative_config}' \
+    --reasoning-parser {reasoning_parser} \
+    --tool-call-parser {tool_call_parser} \
+    --enable-auto-tool-choice \
+    --language-model-only

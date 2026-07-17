@@ -242,3 +242,17 @@ models:
     runtime: llama-cpp
     tp: ~
     min_nodes: 1
+  - name: deepreinforce-ai__ornith-1.0-35b-bf16-mtp-vllm
+    enabled: true
+    model: deepreinforce-ai/Ornith-1.0-35B
+    registry: local
+    runtime: vllm
+    tp: 1
+    min_nodes: 1
+  - name: aeon-7__ornith-1.0-35b-uncensored-nvfp4-dflash-vllm
+    enabled: true
+    model: AEON-7/Ornith-1.0-35B-AEON-Ultimate-Uncensored-NVFP4
+    registry: local
+    runtime: vllm
+    tp: 1
+    min_nodes: 1

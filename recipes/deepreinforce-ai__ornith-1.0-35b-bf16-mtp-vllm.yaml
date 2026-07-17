@@ -1,0 +1,69 @@
+# Model:
+# https://huggingface.co/deepreinforce-ai/Ornith-1.0-35B
+#
+# Qwen3.5-MoE architecture (hybrid linear/full attention, 256 experts, 8 active),
+# vision-language, bf16, 262K context, built-in MTP layer (mtp_num_hidden_layers: 1).
+
+recipe_version: '2'
+
+model: deepreinforce-ai/Ornith-1.0-35B
+
+runtime: vllm
+
+builder: eugr
+
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly:latest
+
+min_nodes: 1
+
+max_nodes: 1
+
+metadata:
+  description: "Ornith-1.0-35B - Qwen3.5-MoE VL, bf16, vLLM, 262K context, MTP"
+  model_params: 35B
+  model_dtype: bf16
+
+defaults:
+  host: 0.0.0.0
+  port: 8000
+  served_model_name: deepreinforce-ai/Ornith-1.0-35B
+  tensor_parallel: 1
+  pipeline_parallel: 1
+  gpu_memory_utilization: 0.7
+  max_model_len: 262144
+  max_num_seqs: 16
+  max_num_batched_tokens: 16384
+  load_format: fastsafetensors
+  reasoning_parser: qwen3
+  tool_call_parser: qwen3_coder
+  speculative_config: '{"method":"mtp","num_speculative_tokens":1}'
+  generation_config: '{"temperature":1.0,"top_p":0.95,"top_k":20}'
+
+env:
+  VLLM_TARGET_DEVICE: cuda
+  VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
+  HF_TOKEN: "${HF_TOKEN}"
+
+command: |
+  vllm serve {model} \
+    --served-model-name {served_model_name} \
+    --host {host} \
+    --port {port} \
+    -tp {tensor_parallel} \
+    -pp {pipeline_parallel} \
+    --trust-remote-code \
+    --gpu-memory-utilization {gpu_memory_utilization} \
+    --max-model-len {max_model_len} \
+    --max-num-seqs {max_num_seqs} \
+    --max-num-batched-tokens {max_num_batched_tokens} \
+    --enable-chunked-prefill \
+    --async-scheduling \
+    --enable-prefix-caching \
+    --limit-mm-per-prompt '{"image":4}' \
+    --allowed-media-domains '*' \
+    --speculative-config '{speculative_config}' \
+    --load-format {load_format} \
+    --reasoning-parser {reasoning_parser} \
+    --override-generation-config '{generation_config}' \
+    --tool-call-parser {tool_call_parser} \
+    --enable-auto-tool-choice
