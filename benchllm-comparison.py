@@ -2,6 +2,7 @@
 # pip install pandas matplotlib pillow requests
 
 import argparse
+import colorsys
 import json
 import math
 import os
@@ -15,6 +16,7 @@ import matplotlib
 
 matplotlib.use("Agg")  # headless: no display on the DGX
 
+import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -40,6 +42,17 @@ INTEL_METRICS = [
 # BFCL v4 OVERALL (weighted aggregate) from the tool-calling section. Kept out
 # of INTEL_METRICS so it does not shift the lm-eval Mean used for row ordering.
 TOOL_METRIC = "BFCL overall"
+
+# lm-eval task name -> the heat-map columns it feeds, for mapping the report's
+# "Failed benchmarks" codes onto cells.
+TASK_METRICS = {
+    "mmlu": ["MMLU"],
+    "gsm8k": ["GSM8K strict", "GSM8K flex"],
+    "arc_challenge": ["ARC acc", "ARC norm"],
+    "hellaswag": ["HellaSwag acc", "HellaSwag norm"],
+    "humaneval": ["HumanEval"],
+    "mbpp": ["MBPP"],
+}
 
 PURPOSES = {
     "MMLU": "general knowledge",
@@ -175,7 +188,9 @@ def metric_name(task: str, metric: str) -> str | None:
 
 
 def parse_intelligence_scores(text: str) -> dict[str, float]:
-    scores = {metric: 0.0 for metric in INTEL_METRICS}
+    # Only metrics actually present in the report; missing ones stay NaN in the
+    # dataframe so they can be shown as failures rather than fake 0.00 scores.
+    scores: dict[str, float] = {}
 
     in_intel = False
     for line in text.splitlines():
@@ -232,6 +247,41 @@ def parse_tool_call_overall(text: str) -> float | None:
             return parse_float(cols[1])
 
     return None
+
+
+def report_failed(text: str) -> bool:
+    return any(line.startswith("## Status: FAILED") for line in text.splitlines())
+
+
+def parse_failed_tasks(text: str) -> dict[str, str]:
+    """Task -> failure code (OOM/CRASH/HANG/...) from the Failed benchmarks table."""
+    failures: dict[str, str] = {}
+    in_section = False
+
+    for line in text.splitlines():
+        if line.startswith("### Failed benchmarks"):
+            in_section = True
+            continue
+
+        if in_section and (line.startswith("## ") or line.startswith("### ")):
+            break
+
+        if not in_section:
+            continue
+
+        if not line.strip().startswith("|"):
+            continue
+
+        cols = split_md_row(line)
+        if len(cols) < 4:
+            continue
+
+        task = cols[0].lower()
+        code = cols[1].upper()
+        if task in TASK_METRICS and code and code not in ("CODE", "---"):
+            failures[task] = code
+
+    return failures
 
 
 def parse_speed_rows(text: str) -> list[dict[str, float]]:
@@ -353,19 +403,78 @@ def wrap_text(value: str, width: int) -> str:
     )
 
 
-def build_color_map(benchmarks: list[str]) -> dict[str, str]:
-    """Stable benchmark -> colour map shared by every figure, so a model's
-    line colour on the speed graphs matches its name colour on page 1."""
-    cycle = plt.rcParams["axes.prop_cycle"].by_key()["color"]
-    return {bm: cycle[i % len(cycle)] for i, bm in enumerate(sorted(benchmarks))}
+def _color_distance(rgb_a: tuple[float, float, float],
+                    rgb_b: tuple[float, float, float]) -> float:
+    """Approximate perceptual distance between two RGB colours ("redmean")."""
+    r1, g1, b1 = (channel * 255.0 for channel in rgb_a)
+    r2, g2, b2 = (channel * 255.0 for channel in rgb_b)
+    r_mean = (r1 + r2) / 2.0
+    dr, dg, db = r1 - r2, g1 - g2, b1 - b2
+    return math.sqrt(
+        (2 + r_mean / 256.0) * dr * dr
+        + 4 * dg * dg
+        + (2 + (255.0 - r_mean) / 256.0) * db * db
+    )
+
+
+def pick_distinct_color(existing: list[str]) -> str:
+    """Colour maximally distant from every colour already assigned. Candidates
+    are the default matplotlib cycle (so early picks stay familiar) plus a grid
+    of hues at several saturation/brightness levels, all dark enough to read
+    against the white page."""
+    existing_rgb = [mcolors.to_rgb(c) for c in existing]
+
+    candidates = [
+        mcolors.to_rgb(c)
+        for c in plt.rcParams["axes.prop_cycle"].by_key()["color"]
+    ]
+    for value, saturation in ((0.85, 0.9), (0.55, 0.9), (0.85, 0.5), (0.4, 0.7)):
+        for step in range(36):
+            candidates.append(colorsys.hsv_to_rgb(step / 36.0, saturation, value))
+
+    best = max(
+        candidates,
+        key=lambda c: min(
+            (_color_distance(c, e) for e in existing_rgb), default=float("inf")
+        ),
+    )
+    return mcolors.to_hex(best)
+
+
+def build_color_map(benchmarks: list[str], colors_path: Path) -> dict[str, str]:
+    """Persistent benchmark -> colour map shared by every figure and every run
+    (upsert: known models keep the colour stored in colors_path; new models get
+    a colour as visually distinct as possible from those already assigned)."""
+    color_map: dict[str, str] = {}
+    if colors_path.exists():
+        color_map = json.loads(colors_path.read_text(encoding="utf-8"))
+
+    added = False
+    for bm in sorted(benchmarks):
+        if bm not in color_map:
+            color_map[bm] = pick_distinct_color(list(color_map.values()))
+            added = True
+
+    if added:
+        colors_path.write_text(
+            json.dumps(color_map, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+
+    return color_map
+
+
+FAIL_CELL_COLOR = "#c8c8c8"
 
 
 def build_intelligence_figure(
     intel_df: pd.DataFrame,
+    codes_df: pd.DataFrame,
     cmap: LinearSegmentedColormap,
     color_map: dict[str, str],
 ) -> plt.Figure:
-    df = intel_df.copy()
+    # Failures still count as 0 for the Mean and the rankings; NaN survives
+    # only into the heat-map cells, where it is drawn grey with its code.
+    df = intel_df.fillna(0.0)
     df["Mean"] = df[INTEL_METRICS].mean(axis=1)
     df = df.sort_values("Mean", ascending=False)
 
@@ -404,7 +513,12 @@ def build_intelligence_figure(
         wrapped_table[col] = wrapped_table[col].apply(lambda x: wrap_text(x, 21))
 
     plot_cols = INTEL_METRICS + [TOOL_METRIC, "Mean"]
-    plot_df = df[plot_cols]
+    # NaN scores (test failed / never ran) drawn as grey cells; the Mean column
+    # is always numeric.
+    plot_df = intel_df.reindex(index=df.index)
+    plot_df["Mean"] = df["Mean"]
+    plot_df = plot_df[plot_cols]
+    cell_codes = codes_df.reindex(index=df.index)
 
     fig = plt.figure(figsize=(22, 18))
     grid = fig.add_gridspec(
@@ -418,7 +532,11 @@ def build_intelligence_figure(
 
     ax = fig.add_subplot(grid[0, :])
     values = plot_df.values
-    image = ax.imshow(values, aspect="auto", vmin=0, vmax=1, cmap=cmap)
+    heat_cmap = cmap.copy()
+    heat_cmap.set_bad(FAIL_CELL_COLOR)
+    image = ax.imshow(
+        np.ma.masked_invalid(values), aspect="auto", vmin=0, vmax=1, cmap=heat_cmap
+    )
 
     ax.set_xticks(range(len(plot_cols)))
     ax.set_xticklabels(plot_cols, rotation=35, ha="right", fontsize=11)
@@ -429,7 +547,11 @@ def build_intelligence_figure(
     for label, name in zip(ax.get_yticklabels(), plot_df.index):
         label.set_color(color_map.get(name, "black"))
 
-    ax.set_title("Sparkrun intelligence scores, failures as zero", fontsize=18, pad=16)
+    ax.set_title(
+        "Sparkrun intelligence scores (grey = test failed or could not run)",
+        fontsize=18,
+        pad=16,
+    )
     ax.set_xlabel("Metric (lm-eval, plus BFCL v4 tool calling)", fontsize=12)
     ax.set_ylabel("Benchmark", fontsize=12)
 
@@ -457,17 +579,32 @@ def build_intelligence_figure(
     cell_fontsize = max(6.0, cell_pts * 0.95 / 1.5)
     for i in range(values.shape[0]):
         for j in range(values.shape[1]):
+            value = values[i, j]
+            if np.isnan(value):
+                # Test never produced a score: show why instead of a fake 0.00
+                # (UNSUP = server can't do echo+logprobs, FAILED = server never
+                # started, else the report's OOM/CRASH/HANG/ERROR code).
+                code = cell_codes.iloc[i][plot_cols[j]] or "n/a"
+                label = "UNSUP" if code == "UNSUPPORTED" else code
+                text_color = "#555555"
+                face = FAIL_CELL_COLOR
+                fontsize = cell_fontsize * min(1.0, 4.5 / len(label))
+            else:
+                label = f"{value:.2f}"
+                text_color = "black"
+                face = cmap(value)
+                fontsize = cell_fontsize
             ax.text(
                 j,
                 i,
-                f"{values[i, j]:.2f}",
+                label,
                 ha="center",
                 va="center",
-                fontsize=cell_fontsize,
-                color="black",
+                fontsize=fontsize,
+                color=text_color,
                 bbox={
                     "boxstyle": "square,pad=0.25",
-                    "facecolor": cmap(values[i, j]),
+                    "facecolor": face,
                     "edgecolor": "none",
                 },
             )
@@ -508,7 +645,10 @@ def build_intelligence_figure(
         0,
         1,
         "Ranking rule:\n"
-        "- Failures counted as 0\n"
+        "- Failures counted as 0 (shown grey with a code)\n"
+        "- FAILED: server never started; UNSUP: server\n"
+        "  lacks echo+logprobs for multiple-choice tasks;\n"
+        "  OOM/CRASH/HANG/ERROR: from the report\n"
         "- Top 5 chosen by score for each test\n"
         "- Ties broken by Mean, then current order\n"
         "- Mean covers lm-eval metrics only (excludes BFCL)",
@@ -698,8 +838,9 @@ def build_line_figure(
 
 def build_dataframes(
     reports: list[tuple[str, str]],
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     intel_rows = []
+    code_rows = []
     speed_rows = []
     concurrency_rows = []
 
@@ -707,9 +848,24 @@ def build_dataframes(
         benchmark = label_from_filename(filename)
 
         scores = parse_intelligence_scores(text)
-        scores[TOOL_METRIC] = parse_tool_call_overall(text) or 0.0
+        tool_overall = parse_tool_call_overall(text)
+        if tool_overall is not None:
+            scores[TOOL_METRIC] = tool_overall
         scores["benchmark"] = benchmark
         intel_rows.append(scores)
+
+        # Failure code per metric with no score: whole-report failures (server
+        # never started) mark every cell, otherwise use the per-task codes from
+        # the report's Failed benchmarks table.
+        if report_failed(text):
+            codes = {m: "FAILED" for m in INTEL_METRICS + [TOOL_METRIC]}
+        else:
+            codes = {}
+            for task, code in parse_failed_tasks(text).items():
+                for m in TASK_METRICS[task]:
+                    codes[m] = code
+        codes["benchmark"] = benchmark
+        code_rows.append(codes)
 
         for row in parse_speed_rows(text):
             row["benchmark"] = benchmark
@@ -720,7 +876,10 @@ def build_dataframes(
             concurrency_rows.append(row)
 
     intel_df = pd.DataFrame(intel_rows).set_index("benchmark")
-    intel_df = intel_df.reindex(columns=INTEL_METRICS + [TOOL_METRIC]).fillna(0.0)
+    intel_df = intel_df.reindex(columns=INTEL_METRICS + [TOOL_METRIC])
+
+    codes_df = pd.DataFrame(code_rows).set_index("benchmark")
+    codes_df = codes_df.reindex(columns=INTEL_METRICS + [TOOL_METRIC]).fillna("")
 
     speed_df = pd.DataFrame(speed_rows)
     if not speed_df.empty:
@@ -732,7 +891,7 @@ def build_dataframes(
     if not concurrency_df.empty:
         concurrency_df = concurrency_df[["benchmark", "concurrency", "aggregate_tps"]]
 
-    return intel_df, speed_df, concurrency_df
+    return intel_df, codes_df, speed_df, concurrency_df
 
 
 def main() -> None:
@@ -743,6 +902,11 @@ def main() -> None:
     parser.add_argument("--input-dir", type=Path)
     parser.add_argument("--gradient", type=Path)
     parser.add_argument("--output", type=Path, default=Path("benchmarks/_Comparison.pdf"))
+    parser.add_argument(
+        "--colors",
+        type=Path,
+        help="model -> colour upsert file (default: _colors.json next to the output)",
+    )
     args = parser.parse_args()
 
     if args.input_dir:
@@ -753,7 +917,7 @@ def main() -> None:
     if not reports:
         raise RuntimeError("No markdown benchmark reports found")
 
-    intel_df, speed_df, concurrency_df = build_dataframes(reports)
+    intel_df, codes_df, speed_df, concurrency_df = build_dataframes(reports)
     cmap = make_score_cmap(args.gradient)
 
     names = set()
@@ -761,10 +925,11 @@ def main() -> None:
         names.update(speed_df["benchmark"].unique())
     if not concurrency_df.empty:
         names.update(concurrency_df["benchmark"].unique())
-    color_map = build_color_map(sorted(names))
+    colors_path = args.colors or args.output.parent / "_colors.json"
+    color_map = build_color_map(sorted(names), colors_path)
 
     with PdfPages(args.output) as pdf:
-        fig = build_intelligence_figure(intel_df, cmap, color_map)
+        fig = build_intelligence_figure(intel_df, codes_df, cmap, color_map)
         pdf.savefig(fig, bbox_inches="tight")
         plt.close(fig)
 
