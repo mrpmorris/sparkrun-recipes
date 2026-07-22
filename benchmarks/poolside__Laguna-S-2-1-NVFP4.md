@@ -1,6 +1,6 @@
 # poolside__Laguna-S-2-1-NVFP4.yaml benchmark results
 
-Generated UTC: 2026-07-22T14:31:17.370543+00:00
+Generated UTC: 2026-07-22T21:44:30.519788+00:00
 
 ## Run
 
@@ -14,9 +14,9 @@ Generated UTC: 2026-07-22T14:31:17.370543+00:00
 | Base URL | http://127.0.0.1:8000/v1 |
 | Host | Linux 6.17.0-1026-nvidia aarch64 GNU/Linux |
 | GPU | NVIDIA GB10 |
-| Output dir | /home/mrpmorris/sparkrun-recipes/bench-results/poolside__Laguna-S-2-1-NVFP4.yaml/20260722-120629 |
+| Output dir | /home/mrpmorris/sparkrun-recipes/bench-results/poolside__Laguna-S-2-1-NVFP4.yaml/20260722-190323 |
 | Command | /home/mrpmorris/sparkrun-recipes/benchllm.py --recipe poolside__Laguna-S-2-1-NVFP4.yaml |
-| Total duration | 8688 s |
+| Total duration | 9667 s |
 
 ## Recipe settings
 
@@ -28,19 +28,19 @@ Generated UTC: 2026-07-22T14:31:17.370543+00:00
 | gpu_memory_utilization | 0.8 |
 | max_model_len | 262144 |
 | max_num_seqs | 64 |
-| speculative_config | {"model":"poolside/Laguna-S-2.1-DFlash-NVFP4","num_speculative_tokens":15} |
-| generation_config | {"temperature":0.7,"top_p":0.95,"repetition_penalty":1.1} |
+| speculative_config | {"model":"poolside/Laguna-S-2.1-DFlash-NVFP4","num_speculative_tokens":1} |
+| generation_config | {"temperature":0.0,"top_p":0.95,"repetition_penalty":1.1} |
 
 ## Speed vs prompt size (single request)
 
 | Prompt tokens | Server prompt tokens | TTFT s | TPOT ms | Prefill tok/s | Generation tok/s | Total s |
 | --- | --- | --- | --- | --- | --- | --- |
-| 256 | 308 | 0.451 | 52.8 | 683.1 | 19.02 | 13.91 |
-| 1024 | 1075 | 0.555 | 68.6 | 1938.1 | 14.63 | 18.05 |
-| 4096 | 4147 | 1.739 | 65.6 | 2385.1 | 15.31 | 18.47 |
-| 16384 | 16434 | 6.688 | 68.5 | 2457.3 | 14.66 | 24.15 |
-| 65536 | 65587 | 31.627 | 73.6 | 2073.8 | 13.64 | 50.39 |
-| 259267 | 259314 | 220.365 | 87.0 | 1176.7 | 11.53 | 242.56 |
+| 256 | 306 | 0.402 | 45.1 | 760.4 | 22.28 | 11.90 |
+| 1024 | 1074 | 0.535 | 47.3 | 2008.1 | 21.25 | 12.58 |
+| 4096 | 4143 | 1.559 | 48.7 | 2656.7 | 20.63 | 13.97 |
+| 16384 | 16436 | 5.808 | 48.8 | 2829.9 | 20.56 | 18.26 |
+| 65536 | 65586 | 27.646 | 52.1 | 2372.4 | 19.28 | 40.92 |
+| 259267 | 259315 | 195.588 | 73.5 | 1325.8 | 13.65 | 214.34 |
 
 TTFT = time to first token. TPOT = time per output token (mean inter-token latency after the first token). Prefill tok/s = prompt tokens / TTFT. Generation tok/s = output tokens per second after the first token.
 
@@ -52,13 +52,13 @@ Recipe max concurrency: 64 (from max_num_seqs / max_batch_size); levels above it
 
 | Concurrency | OK | Failed | TTFT p50 s | TTFT p95 s | Per-req gen tok/s | Aggregate tok/s | Wall s |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 1 | 0 | 0.561 | 0.561 | 14.46 | 14.0 | 18.27 |
-| 2 | 2 | 0 | 0.988 | 1.052 | 11.96 | 22.7 | 22.54 |
-| 4 | 4 | 0 | 1.611 | 1.984 | 10.43 | 33.7 | 30.35 |
-| 8 | 8 | 0 | 2.602 | 3.885 | 7.76 | 55.6 | 36.82 |
-| 16 | 16 | 0 | 4.550 | 8.225 | 5.90 | 80.0 | 51.17 |
-| 32 | 32 | 0 | 9.045 | 19.248 | 4.38 | 106.5 | 76.94 |
-| 64 | 64 | 0 | 16.457 | 47.501 | 2.07 | 79.0 | 58.67 |
+| 1 | 1 | 0 | 0.555 | 0.555 | 20.74 | 19.8 | 12.90 |
+| 2 | 2 | 0 | 0.973 | 1.012 | 17.46 | 31.6 | 16.23 |
+| 4 | 4 | 0 | 1.668 | 1.716 | 14.84 | 53.0 | 19.33 |
+| 8 | 8 | 0 | 2.774 | 3.149 | 11.77 | 81.7 | 25.05 |
+| 16 | 16 | 0 | 4.259 | 6.078 | 8.56 | 115.5 | 35.45 |
+| 32 | 32 | 0 | 7.067 | 11.970 | 6.87 | 177.0 | 46.28 |
+| 64 | 64 | 0 | 13.010 | 23.785 | 5.01 | 237.7 | 68.94 |
 
 Per-req gen tok/s = mean per-request generation rate (falls as concurrency rises and the GPU is shared). Aggregate tok/s = total output tokens across all concurrent requests / wall-clock (the server's real throughput under load).
 
@@ -68,15 +68,15 @@ Per-req gen tok/s = mean per-request generation rate (falls as concurrency rises
 
 | Task | Description | Metric | Value | Stderr | Samples |
 | --- | --- | --- | --- | --- | --- |
-| mmlu | General knowledge across 57 academic subjects | acc,none | 0.5544 | 0.0204 |  |
-| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,strict-match | 0.8620 | 0.0095 | 1319 |
-| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,flexible-extract | 0.5246 | 0.0138 | 1319 |
-| arc_challenge | Hard science exam questions (reasoning) | acc,none | 0.2995 | 0.0134 | 1172 |
-| arc_challenge | Hard science exam questions (reasoning) | acc_norm,none | 0.3328 | 0.0138 | 1172 |
-| hellaswag | Commonsense sentence completion | acc,none | 0.3800 | 0.0488 | 100 |
-| hellaswag | Commonsense sentence completion | acc_norm,none | 0.5200 | 0.0502 | 100 |
+| mmlu | General knowledge across 57 academic subjects | acc,none | 0.7895 | 0.0162 |  |
+| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,strict-match | 0.8575 | 0.0096 | 1319 |
+| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,flexible-extract | 0.5262 | 0.0138 | 1319 |
+| arc_challenge | Hard science exam questions (reasoning) | acc,none | 0.5026 | 0.0146 | 1172 |
+| arc_challenge | Hard science exam questions (reasoning) | acc_norm,none | 0.5230 | 0.0146 | 1172 |
+| hellaswag | Commonsense sentence completion | acc,none | 0.5600 | 0.0499 | 100 |
+| hellaswag | Commonsense sentence completion | acc_norm,none | 0.6900 | 0.0465 | 100 |
 | humaneval | Coding: write Python functions that pass unit tests | pass@1,create_test | 0.4146 | 0.0386 | 164 |
-| mbpp | Coding: basic Python programming problems, graded by unit tests | pass_at_1,none | 0.7280 | 0.0199 | 500 |
+| mbpp | Coding: basic Python programming problems, graded by unit tests | pass_at_1,none | 0.7460 | 0.0195 | 500 |
 
 ## Tool calling (BFCL v4 via EvalScope)
 
@@ -84,19 +84,19 @@ Berkeley Function Calling Leaderboard v4 — exercises the recipe's real tool-ca
 
 | Subset / Category | Score | Samples |
 | --- | --- | --- |
-| Laguna-S-2.1-NVFP4@bfcl_v4 | 0.5771 |  |
-| acc | 0.5771 | 175 |
-| irrelevance | 0.9600 | 25 |
-| live_multiple | 0.5200 | 25 |
-| live_simple | 0.8800 | 25 |
+| Laguna-S-2.1-NVFP4@bfcl_v4 | 0.5829 |  |
+| acc | 0.5829 | 175 |
+| irrelevance | 1.0000 | 25 |
+| live_multiple | 0.5600 | 25 |
+| live_simple | 0.9200 | 25 |
 | multiple | 0.7200 | 25 |
 | parallel | 0.0800 | 25 |
-| parallel_multiple | 0.1600 | 25 |
+| parallel_multiple | 0.0800 | 25 |
 | simple_python | 0.7200 | 25 |
-| NON_LIVE | 0.4200 | 100 |
-| LIVE | 0.7000 | 50 |
-| HALLUCINATION | 0.9600 | 25 |
-| OVERALL | 0.2080 | 175 |
+| NON_LIVE | 0.4000 | 100 |
+| LIVE | 0.7400 | 50 |
+| HALLUCINATION | 1.0000 | 25 |
+| OVERALL | 0.2140 | 175 |
 
 ## Warnings
 

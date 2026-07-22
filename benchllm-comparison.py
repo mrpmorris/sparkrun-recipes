@@ -441,25 +441,15 @@ def pick_distinct_color(existing: list[str]) -> str:
     return mcolors.to_hex(best)
 
 
-def build_color_map(benchmarks: list[str], colors_path: Path) -> dict[str, str]:
-    """Persistent benchmark -> colour map shared by every figure and every run
-    (upsert: known models keep the colour stored in colors_path; new models get
-    a colour as visually distinct as possible from those already assigned)."""
+def build_color_map(benchmarks: list[str]) -> dict[str, str]:
+    """Benchmark -> colour map shared by every figure in a single run. Colours
+    are assigned fresh each run (not persisted to disk); consistency is only
+    needed within one generated PDF, which is guaranteed by passing this one
+    map to every page. Each new model gets a colour as visually distinct as
+    possible from those already assigned."""
     color_map: dict[str, str] = {}
-    if colors_path.exists():
-        color_map = json.loads(colors_path.read_text(encoding="utf-8"))
-
-    added = False
     for bm in sorted(benchmarks):
-        if bm not in color_map:
-            color_map[bm] = pick_distinct_color(list(color_map.values()))
-            added = True
-
-    if added:
-        colors_path.write_text(
-            json.dumps(color_map, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-        )
-
+        color_map[bm] = pick_distinct_color(list(color_map.values()))
     return color_map
 
 
@@ -902,11 +892,6 @@ def main() -> None:
     parser.add_argument("--input-dir", type=Path)
     parser.add_argument("--gradient", type=Path)
     parser.add_argument("--output", type=Path, default=Path("benchmarks/_Comparison.pdf"))
-    parser.add_argument(
-        "--colors",
-        type=Path,
-        help="model -> colour upsert file (default: _colors.json next to the output)",
-    )
     args = parser.parse_args()
 
     if args.input_dir:
@@ -925,8 +910,7 @@ def main() -> None:
         names.update(speed_df["benchmark"].unique())
     if not concurrency_df.empty:
         names.update(concurrency_df["benchmark"].unique())
-    colors_path = args.colors or args.output.parent / "_colors.json"
-    color_map = build_color_map(sorted(names), colors_path)
+    color_map = build_color_map(sorted(names))
 
     with PdfPages(args.output) as pdf:
         fig = build_intelligence_figure(intel_df, codes_df, cmap, color_map)

@@ -32,10 +32,10 @@ defaults:
   max_model_len: 262144
   # DFlash crashes at the vLLM default of 256; model card requires 32.
   max_num_seqs: 64
-  speculative_config: '{"model":"poolside/Laguna-S-2.1-DFlash-NVFP4","num_speculative_tokens":15}'
+  speculative_config: '{"model":"poolside/Laguna-S-2.1-DFlash-NVFP4","num_speculative_tokens":1}'
   # Model card: raw sampling defaults degrade output. Do NOT add min_p -
   # vLLM rejects it under speculative decoding.
-  generation_config: '{"temperature":0.7,"top_p":0.95,"repetition_penalty":1.1}'
+  generation_config: '{"temperature":0.0,"top_p":0.95,"repetition_penalty":1.1}'
 
 env:
   # Model card: limits JIT compile parallelism to avoid memory exhaustion

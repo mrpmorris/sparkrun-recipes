@@ -2,7 +2,7 @@
 """Optimise a sparkrun recipe for single-stream generation speed.
 
 Usage:
-    ./Optimise.sh --recipe <filename-or-recipe-name>
+    ./optimise.sh --recipe <filename-or-recipe-name>
 
 Resolves the recipe from recipes/ (or via `sparkrun export recipe` for
 registry recipes), then tunes its parameters by relaunching the workload
@@ -46,20 +46,24 @@ ENUM_PARAMS = {
 
 # name: (low, high, type, resolution, max_evals)
 NUMERIC_PARAMS = {
-    "gpu_memory_utilization": (0.70, 0.92, float, 0.02, 5),
     "max_num_seqs": (1, 64, int, 4, 5),
     "max_num_batched_tokens": (2048, 32768, int, 2048, 5),
     "num_speculative_tokens": (1, 24, int, 2, 5),  # inside speculative_config
 }
 
+# MTP drafters expose a small number of prediction heads, so the useful
+# num_speculative_tokens range is much narrower than for dflash/eagle.
+MTP_SPEC_TOKENS = (1, 8, int, 1, 5)
+
 # Never tuned: identity/capability settings, not performance knobs
 # (max_model_len is deliberately excluded so the optimised recipe never
-# loses context length).
+# loses context length; gpu_memory_utilization barely affects speed and
+# changing it risks OOM, so it is left alone too).
 UNTUNABLE = {
     "host", "port", "served_model_name", "model", "quantization",
     "max_model_len", "tensor_parallel", "pipeline_parallel",
     "load_format", "reasoning_parser", "tool_call_parser",
-    "generation_config", "speculative_config",
+    "generation_config", "speculative_config", "gpu_memory_utilization",
 }
 
 WORDS = (
@@ -316,6 +320,20 @@ class Tuner:
                 self.defaults["speculative_config"])["num_speculative_tokens"]
         return self.defaults[param]
 
+    def numeric_spec(self, param):
+        """Search space for a numeric param, adjusted for context.
+
+        MTP speculative decoding has few prediction heads, so its
+        num_speculative_tokens search range is much narrower than for
+        drafter-model methods like dflash/eagle.
+        """
+        if param == "num_speculative_tokens":
+            method = json.loads(
+                self.defaults["speculative_config"]).get("method", "")
+            if method == "mtp":
+                return MTP_SPEC_TOKENS
+        return NUMERIC_PARAMS[param]
+
     # -- search strategies --------------------------------------------------
 
     def sweep_enum(self, param, best_config):
@@ -331,7 +349,7 @@ class Tuner:
         return best_val, best
 
     def split_numeric(self, param, best_config):
-        lo, hi, typ, resolution, max_evals = NUMERIC_PARAMS[param]
+        lo, hi, typ, resolution, max_evals = self.numeric_spec(param)
         current = typ(self.current_value(param))
 
         tested = {}
@@ -430,7 +448,7 @@ def main():
         total += n - 1
         log(f"  enum    {p}: all of {ENUM_PARAMS[p]}")
     for p in numerics:
-        lo, hi, _, _, max_evals = NUMERIC_PARAMS[p]
+        lo, hi, _, _, max_evals = tuner.numeric_spec(p)
         total += max_evals - 1
         log(f"  numeric {p}: binary split in [{lo}, {hi}], "
             f"<= {max_evals} evals")

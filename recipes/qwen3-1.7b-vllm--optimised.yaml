@@ -1,0 +1,19 @@
+recipe_version: '2'
+model: Qwen/Qwen3-1.7B
+runtime: vllm
+builder: eugr
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly-tf5:latest
+metadata:
+  description: Qwen3 1.7B -- small test model, solo or cluster. Auto-tuned by Optimise.py on 2026-07-22.
+  maintainer: scitrera.ai <open-source-team@scitrera.com>
+  model_params: 1.7B
+  model_dtype: bf16
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  tensor_parallel: 1
+  gpu_memory_utilization: 0.7
+  served_model_name: qwen3-1.7b
+command: "vllm serve \\\n    {model} \\\n    --served-model-name {served_model_name} \\\n    --gpu-memory-utilization\
+  \ {gpu_memory_utilization} \\\n    -tp {tensor_parallel} \\\n    --host {host} \\\n    --port {port}\
+  \ \\\n    --reasoning-parser deepseek_r1 \\\n    --trust-remote-code\n"
