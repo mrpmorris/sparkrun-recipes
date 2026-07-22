@@ -22,5 +22,6 @@
   "official-qwen3.6-27b-fp8-mtp-vllm": "#16b8d9",
   "official-qwen3.6-27b-fp8-vllm": "#36661f",
   "official-qwen3.6-35b-a3b-fp8-mtp-vllm": "#d9a36c",
-  "official-qwen3.6-35b-a3b-fp8-vllm": "#6cd991"
+  "official-qwen3.6-35b-a3b-fp8-vllm": "#6cd991",
+  "poolside-Laguna-S-2-1-NVFP4": "#4e1f66"
 }
