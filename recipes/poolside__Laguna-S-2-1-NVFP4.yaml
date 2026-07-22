@@ -1,41 +1,58 @@
+# Model:
+# https://huggingface.co/poolside/Laguna-S-2.1-NVFP4
+#
+# Drafter (DFlash speculative decoding):
+# https://huggingface.co/poolside/Laguna-S-2.1-DFlash-NVFP4
+
 recipe_version: '2'
+
 model: poolside/Laguna-S-2.1-NVFP4
+
 runtime: vllm
+
 container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly:latest
 
 min_nodes: 1
+
 max_nodes: 1
 
 metadata:
-  description: "Poolside Laguna-S-2.1 NVFP4 with DFlash speculative decoding."
+  description: "Poolside Laguna-S-2.1 NVFP4 - 117.6B MoE (8.5B active), DFlash speculative decoding, 256K context"
   maintainer: pmorris
   category: coding
-  model_params: 37B
+  model_params: 117.6B
   model_dtype: nvfp4
-  quantization: modelopt
+  quantization: nvfp4
 
 defaults:
-  port: 8000
   host: 0.0.0.0
+  port: 8000
   tensor_parallel: 1
   gpu_memory_utilization: 0.8
   max_model_len: 262144
+  # DFlash crashes at the vLLM default of 256; model card requires 32.
+  max_num_seqs: 64
+  speculative_config: '{"model":"poolside/Laguna-S-2.1-DFlash-NVFP4","num_speculative_tokens":15}'
+  # Model card: raw sampling defaults degrade output. Do NOT add min_p -
+  # vLLM rejects it under speculative decoding.
+  generation_config: '{"temperature":0.7,"top_p":0.95,"repetition_penalty":1.1}'
+
+env:
+  # Model card: limits JIT compile parallelism to avoid memory exhaustion
+  # on first startup (first start takes ~15 minutes).
+  MAX_JOBS: "4"
 
 command: |
   vllm serve {model} \
-     --host {host} \
-     --port {port} \
-     --tensor-parallel-size {tensor_parallel} \
-     --moe-backend triton \
-     --max-model-len {max_model_len} \
-     --trust-remote-code \
-     --enable-auto-tool-choice \
-     --tool-call-parser poolside_v1 \
-     --reasoning-parser poolside_v1 \
-     --default-chat-template-kwargs '{"enable_thinking":true}' \
-     --kv-cache-dtype fp8 \
-     --enable-prefix-caching \
-     --enable-chunked-prefill \
-     --load-format fastsafetensors \
-     --speculative-config '{"method":"dflash","model":"poolside/Laguna-S-2.1-DFlash-NVFP4","num_speculative_tokens":15}' \
-     --gpu-memory-utilization {gpu_memory_utilization}
+    --host {host} \
+    --port {port} \
+    --tensor-parallel-size {tensor_parallel} \
+    --trust-remote-code \
+    --max-model-len {max_model_len} \
+    --max-num-seqs {max_num_seqs} \
+    --gpu-memory-utilization {gpu_memory_utilization} \
+    --enable-auto-tool-choice \
+    --tool-call-parser poolside_v1 \
+    --reasoning-parser poolside_v1 \
+    --override-generation-config '{generation_config}' \
+    --speculative-config '{speculative_config}'
