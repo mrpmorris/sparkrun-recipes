@@ -3,7 +3,7 @@
 # Generated 2026-07-11 from `sparkrun list --json`. 41 recipes.
 models:
   - name: @eugr/glm-4.7-flash-awq
-    enabled: true
+    enabled: false
     model: cyankiwi/GLM-4.7-Flash-AWQ-4bit
     registry: eugr
     runtime: vllm-distributed
@@ -17,7 +17,7 @@ models:
     tp: 1
     min_nodes: 1
   - name: @eugr/openai-gpt-oss-120b
-    enabled: true
+    enabled: false
     model: openai/gpt-oss-120b
     registry: eugr
     runtime: vllm-distributed
@@ -200,7 +200,7 @@ models:
     tp: 1
     min_nodes: 1
   - name: @community/qwen3.5-122b-a10b-int4fp8-mtp-vllm-Taremimi7710
-    enabled: true
+    enabled: false
     model: Intel/Qwen3.5-122B-A10B-int4-AutoRound
     registry: community
     runtime: vllm-distributed
@@ -225,20 +225,6 @@ models:
     model: Qwen/Qwen3.6-35B-A3B-FP8
     registry: community
     runtime: vllm-distributed
-    tp: 1
-    min_nodes: 1
-  - name: colibri__glm-5.2-int4-mtp
-    enabled: true
-    model: mateogrgic/GLM-5.2-colibri-int4-with-int8-mtp
-    registry: local
-    runtime: llama-cpp
-    tp: ~
-    min_nodes: 1
-  - name: deepreinforce-ai__ornith-1.0-35b-bf16-mtp-vllm
-    enabled: true
-    model: deepreinforce-ai/Ornith-1.0-35B
-    registry: local
-    runtime: vllm
     tp: 1
     min_nodes: 1
   - name: aeon-7__ornith-1.0-35b-uncensored-nvfp4-dflash-vllm
