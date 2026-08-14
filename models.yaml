@@ -73,79 +73,70 @@ models:
     tp: 1
     min_nodes: 1
   - name: @atlas/mistral-small-4-119b-nvfp4
-    enabled: true
+    enabled: false
     model: mistralai/Mistral-Small-4-119B-2603-NVFP4
     registry: atlas
     runtime: atlas
     tp: ~
     min_nodes: 1
   - name: @atlas/nemotron-3-nano-30b-a3b-nvfp4
-    enabled: true
+    enabled: false
     model: nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4
     registry: atlas
     runtime: atlas
     tp: ~
     min_nodes: 1
-  - name: @atlas/nemotron-3-super-120b-a12b-nvfp4
-    # Disabled: OOMs on inference buffers at stock batch-8 on a single GB10.
-    # Use recipes/atlas__nemotron-3-super-120b-a12b-nvfp4-batch4.yaml instead.
-    enabled: false
-    model: nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4
-    registry: atlas
-    runtime: atlas
-    tp: ~
-    min_nodes: 1
   - name: @atlas/qwen3-next-80b-a3b-nvfp4
-    enabled: true
+    enabled: false
     model: nvidia/Qwen3-Next-80B-A3B-Instruct-NVFP4
     registry: atlas
     runtime: atlas
     tp: ~
     min_nodes: 1
   - name: @atlas/qwen3-vl-30b-a3b-nvfp4
-    enabled: true
+    enabled: false
     model: ig1/Qwen3-VL-30B-A3B-Instruct-NVFP4
     registry: atlas
     runtime: atlas
     tp: ~
     min_nodes: 1
   - name: @atlas/qwen3.5-0.8b-bf16-atlas
-    enabled: true
+    enabled: false
     model: Qwen/Qwen3.5-0.8B
     registry: atlas
     runtime: atlas
     tp: ~
     min_nodes: 1
   - name: @atlas/qwen3.5-122b-a10b-nvfp4-single
-    enabled: true
+    enabled: false
     model: Sehyo/Qwen3.5-122B-A10B-NVFP4
     registry: atlas
     runtime: atlas
     tp: ~
     min_nodes: 1
   - name: @atlas/qwen3.5-27b-dense-nvfp4
-    enabled: true
+    enabled: false
     model: Kbenkhaled/Qwen3.5-27B-NVFP4
     registry: atlas
     runtime: atlas
     tp: ~
     min_nodes: 1
   - name: @atlas/qwen3.5-35b-a3b-nvfp4
-    enabled: true
+    enabled: false
     model: Sehyo/Qwen3.5-35B-A3B-NVFP4
     registry: atlas
     runtime: atlas
     tp: ~
     min_nodes: 1
   - name: @atlas/qwen3.6-27b-fp8
-    enabled: true
+    enabled: false
     model: Qwen/Qwen3.6-27B-FP8
     registry: atlas
     runtime: atlas
     tp: ~
     min_nodes: 1
   - name: @atlas/qwen3.6-27b-fp8-mtp
-    enabled: true
+    enabled: false
     model: Qwen/Qwen3.6-27B-FP8
     registry: atlas
     runtime: atlas
@@ -160,35 +151,35 @@ models:
     tp: ~
     min_nodes: 1
   - name: @atlas/qwen3.6-27b-nvfp4-prefill-record
-    enabled: true
+    enabled: false
     model: nvidia/Qwen3.6-27B-NVFP4
     registry: atlas
     runtime: atlas
     tp: ~
     min_nodes: 1
   - name: @atlas/qwen3.6-35b-a3b-fp8-bf16head
-    enabled: true
+    enabled: false
     model: Qwen/Qwen3.6-35B-A3B-FP8
     registry: atlas
     runtime: atlas
     tp: ~
     min_nodes: 1
   - name: @atlas/qwen3.6-35b-a3b-fp8-mtp
-    enabled: true
+    enabled: false
     model: Qwen/Qwen3.6-35B-A3B-FP8
     registry: atlas
     runtime: atlas
     tp: ~
     min_nodes: 1
   - name: @atlas/qwen3.6-35b-a3b-fp8-nvfp4head
-    enabled: true
+    enabled: false
     model: Qwen/Qwen3.6-35B-A3B-FP8
     registry: atlas
     runtime: atlas
     tp: ~
     min_nodes: 1
   - name: @atlas/qwen3.6-35b-a3b-nvfp4-nvidia
-    enabled: true
+    enabled: false
     model: nvidia/Qwen3.6-35B-A3B-NVFP4
     registry: atlas
     runtime: atlas
