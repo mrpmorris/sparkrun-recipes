@@ -22,6 +22,9 @@
 # re-running the batch just fills in what's missing. Pass --force to re-run
 # everything regardless.
 #
+# Pass --list to print the recipes that would run (with run/skip status based
+# on existing reports) and exit without benchmarking anything.
+#
 # Any extra arguments are passed straight through to benchllm.sh, e.g.:
 #   ./benchllm-all.sh --skip-eval
 #   ./benchllm-all.sh --force --skip-eval
@@ -36,6 +39,19 @@ BENCHLLM="$SCRIPT_DIR/benchllm.sh"
 
 MODELS_YAML="${MODELS_YAML:-$SCRIPT_DIR/models.yaml}"
 RECIPES_DIR="${RECIPES_DIR:-$SCRIPT_DIR/recipes}"
+
+# --- Flags handled here (not passed through to benchllm.sh) ----------------
+LIST_ONLY=0
+FORCE=0
+passthrough=()
+for arg in "$@"; do
+  case "$arg" in
+    --list) LIST_ONLY=1 ;;
+    *) passthrough+=("$arg")
+       [[ "$arg" == "--force" ]] && FORCE=1 ;;
+  esac
+done
+set -- ${passthrough[@]+"${passthrough[@]}"}
 
 # --- Build the list of recipes to run -------------------------------------
 recipes=()
@@ -77,6 +93,34 @@ fi
 if [[ ${#recipes[@]} -eq 0 ]]; then
   echo "benchllm-all: no recipes found in $MODELS_YAML or $RECIPES_DIR." >&2
   exit 1
+fi
+
+# Report stem: mirrors benchllm.py's resolve_recipe — file paths use the
+# basename minus extension; registry names strip '@' and turn '/' into '__'.
+report_stem() {
+  local r="$1"
+  if [[ -f "$r" ]]; then
+    r="$(basename -- "$r")"
+    r="${r%.yaml}"; r="${r%.yml}"
+  else
+    r="${r#@}"; r="${r//\//__}"
+  fi
+  printf '%s' "$r"
+}
+
+if [[ "$LIST_ONLY" == "1" ]]; then
+  echo "benchllm-all: ${#recipes[@]} recipe(s) found:"
+  for recipe in "${recipes[@]}"; do
+    stem="$(report_stem "$recipe")"
+    if [[ -f "$SCRIPT_DIR/benchmarks/$stem.md" && "$FORCE" == "0" ]]; then
+      printf '  skip  %s  (benchmarks/%s.md exists)
+' "$recipe" "$stem"
+    else
+      printf '  run   %s
+' "$recipe"
+    fi
+  done
+  exit 0
 fi
 
 echo "benchllm-all: ${#recipes[@]} recipe(s) to benchmark:"

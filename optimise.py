@@ -51,9 +51,9 @@ NUMERIC_PARAMS = {
     "num_speculative_tokens": (1, 24, int, 2, 5),  # inside speculative_config
 }
 
-# MTP drafters expose a small number of prediction heads, so the useful
-# num_speculative_tokens range is much narrower than for dflash/eagle.
-MTP_SPEC_TOKENS = (1, 8, int, 1, 5)
+# MTP speedups are not monotonic or smooth in num_speculative_tokens, so
+# binary splitting misleads; every value is tried instead.
+MTP_SPEC_TOKENS_SWEEP = list(range(0, 33))
 
 # Never tuned: identity/capability settings, not performance knobs
 # (max_model_len is deliberately excluded so the optimised recipe never
@@ -321,18 +321,18 @@ class Tuner:
         return self.defaults[param]
 
     def numeric_spec(self, param):
-        """Search space for a numeric param, adjusted for context.
+        return NUMERIC_PARAMS[param]
 
-        MTP speculative decoding has few prediction heads, so its
-        num_speculative_tokens search range is much narrower than for
-        drafter-model methods like dflash/eagle.
-        """
+    def numeric_sweep_values(self, param):
+        """Explicit value list for numerics that must be swept exhaustively
+        instead of binary-split. MTP gains are not smooth in
+        num_speculative_tokens, so splitting misleads there."""
         if param == "num_speculative_tokens":
             method = json.loads(
                 self.defaults["speculative_config"]).get("method", "")
             if method == "mtp":
-                return MTP_SPEC_TOKENS
-        return NUMERIC_PARAMS[param]
+                return MTP_SPEC_TOKENS_SWEEP
+        return None
 
     # -- search strategies --------------------------------------------------
 
@@ -347,6 +347,19 @@ class Tuner:
             if result and (best is None or result["tps"] > best["tps"]):
                 best_val, best = value, result
         return best_val, best
+
+    def sweep_numeric(self, param, best_config, values):
+        current = int(self.current_value(param))
+        tested = {}
+        for v in dict.fromkeys([current] + list(values)):
+            result = self.evaluate({**best_config, param: v}, f"{param}={v}")
+            if result:
+                tested[v] = result["tps"]
+        if not tested:
+            return current, None
+        best_val = max(tested, key=tested.get)
+        return best_val, {"tps": tested[best_val],
+                          "ttpt_ms": 1000.0 / tested[best_val]}
 
     def split_numeric(self, param, best_config):
         lo, hi, typ, resolution, max_evals = self.numeric_spec(param)
@@ -448,10 +461,16 @@ def main():
         total += n - 1
         log(f"  enum    {p}: all of {ENUM_PARAMS[p]}")
     for p in numerics:
-        lo, hi, _, _, max_evals = tuner.numeric_spec(p)
-        total += max_evals - 1
-        log(f"  numeric {p}: binary split in [{lo}, {hi}], "
-            f"<= {max_evals} evals")
+        sweep = tuner.numeric_sweep_values(p)
+        if sweep is not None:
+            total += len(sweep)
+            log(f"  numeric {p}: exhaustive sweep over "
+                f"[{sweep[0]}..{sweep[-1]}], {len(sweep)} evals")
+        else:
+            lo, hi, _, _, max_evals = tuner.numeric_spec(p)
+            total += max_evals - 1
+            log(f"  numeric {p}: binary split in [{lo}, {hi}], "
+                f"<= {max_evals} evals")
     log(f"worst case ~{total} server restarts; large models load slowly, "
         f"so budget ~10-15 min per restart")
     if args.dry_run:
@@ -471,7 +490,12 @@ def main():
             if param in ENUM_PARAMS:
                 value, result = tuner.sweep_enum(param, best_config)
             else:
-                value, result = tuner.split_numeric(param, best_config)
+                sweep = tuner.numeric_sweep_values(param)
+                if sweep is not None:
+                    value, result = tuner.sweep_numeric(
+                        param, best_config, sweep)
+                else:
+                    value, result = tuner.split_numeric(param, best_config)
             if result and result["tps"] > best["tps"]:
                 best = result
             if value != tuner.current_value(param):

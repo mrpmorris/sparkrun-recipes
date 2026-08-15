@@ -1011,7 +1011,7 @@ def run_lm_eval_task(task: str, base_url: str, model: str, tokenizer: str, limit
     # Watchdog: an eval must keep writing to its log (stall limit) and finish
     # within a hard cap, else it is killed — one bad task must not wedge a
     # multi-recipe batch overnight.
-    STALL_S, HARD_CAP_S, POLL_S = 600, 7200, 15
+    STALL_S, HARD_CAP_S, POLL_S = 600, 14400, 15
     rc, wd_reason = stream_process(cmd, log_path, env=env,
                                    stall_s=STALL_S, hard_cap_s=HARD_CAP_S, poll_s=POLL_S)
     if wd_reason:

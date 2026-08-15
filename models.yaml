@@ -31,14 +31,14 @@ models:
     tp: ~
     min_nodes: 1
   - name: @official/qwen3-vl-embedding-8b-vllm
-    enabled: true
+    enabled: false
     model: Qwen/Qwen3-VL-Embedding-8B
     registry: official
     runtime: vllm-distributed
     tp: 1
     min_nodes: 1
   - name: @official/qwen3-vl-reranker-8b-vllm
-    enabled: true
+    enabled: false
     model: Qwen/Qwen3-VL-Reranker-8B
     registry: official
     runtime: vllm-distributed
@@ -70,6 +70,13 @@ models:
     model: Qwen/Qwen3.6-35B-A3B-FP8
     registry: official
     runtime: vllm-distributed
+    tp: 1
+    min_nodes: 1
+  - name: @official/qwen3.8-27b-fp8-mtp-vllm
+    enabled: true
+    model: Qwen/Qwen3.8-27B-FP8
+    registry: official
+    runtime: vllm
     tp: 1
     min_nodes: 1
   - name: @atlas/mistral-small-4-119b-nvfp4
