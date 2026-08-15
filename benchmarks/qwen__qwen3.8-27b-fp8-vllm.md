@@ -1,6 +1,6 @@
 # qwen__qwen3.8-27b-fp8-vllm.yaml benchmark results
 
-Generated UTC: 2026-08-14T21:51:56.942974+00:00
+Generated UTC: 2026-08-15T01:41:42.951701+00:00
 
 ## Run
 
@@ -14,9 +14,9 @@ Generated UTC: 2026-08-14T21:51:56.942974+00:00
 | Base URL | http://127.0.0.1:8000/v1 |
 | Host | Linux 6.17.0-1029-nvidia aarch64 GNU/Linux |
 | GPU | NVIDIA GB10 |
-| Output dir | /home/mrpmorris/sparkrun-recipes/bench-results/qwen__qwen3.8-27b-fp8-vllm.yaml/20260814-182554 |
+| Output dir | /home/mrpmorris/sparkrun-recipes/bench-results/qwen__qwen3.8-27b-fp8-vllm.yaml/20260814-220505 |
 | Command | /home/mrpmorris/sparkrun-recipes/benchllm.py --recipe qwen__qwen3.8-27b-fp8-vllm.yaml |
-| Total duration | 12362 s |
+| Total duration | 12997 s |
 
 ## Recipe settings
 
@@ -39,12 +39,12 @@ Generated UTC: 2026-08-14T21:51:56.942974+00:00
 
 | Prompt tokens | Server prompt tokens | TTFT s | TPOT ms | Prefill tok/s | Generation tok/s | Total s |
 | --- | --- | --- | --- | --- | --- | --- |
-| 256 | 316 | 0.246 | 126.8 | 1283.9 | 7.92 | 32.58 |
-| 1024 | 1083 | 0.796 | 127.1 | 1360.7 | 7.90 | 33.20 |
-| 4096 | 4153 | 2.503 | 127.5 | 1659.1 | 7.87 | 35.02 |
-| 16384 | 16441 | 18.928 | 129.6 | 868.6 | 7.74 | 51.98 |
-| 65536 | 65592 | 84.120 | 137.4 | 779.7 | 7.31 | 119.15 |
-| 259267 | 259326 | 514.765 | 166.7 | 503.8 | 6.02 | 557.26 |
+| 256 | 313 | 0.241 | 125.8 | 1297.7 | 7.98 | 32.32 |
+| 1024 | 1082 | 0.784 | 126.1 | 1379.8 | 7.96 | 32.93 |
+| 4096 | 4156 | 2.270 | 126.6 | 1830.9 | 7.93 | 34.56 |
+| 16384 | 16442 | 18.835 | 128.6 | 873.0 | 7.81 | 51.62 |
+| 65536 | 65595 | 86.381 | 136.3 | 759.4 | 7.37 | 121.13 |
+| 259267 | 259325 | 517.375 | 165.5 | 501.2 | 6.07 | 559.58 |
 
 TTFT = time to first token. TPOT = time per output token (mean inter-token latency after the first token). Prefill tok/s = prompt tokens / TTFT. Generation tok/s = output tokens per second after the first token.
 
@@ -56,13 +56,13 @@ Recipe declares no max_num_seqs / max_batch_size — full ladder run.
 
 | Concurrency | OK | Failed | TTFT p50 s | TTFT p95 s | Per-req gen tok/s | Aggregate tok/s | Wall s |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 1 | 0 | 0.829 | 0.829 | 7.86 | 7.7 | 33.38 |
-| 2 | 2 | 0 | 1.378 | 1.567 | 7.84 | 15.0 | 34.09 |
-| 4 | 4 | 0 | 5.700 | 5.702 | 7.56 | 26.3 | 39.00 |
-| 8 | 8 | 0 | 18.404 | 18.408 | 7.21 | 38.6 | 53.02 |
-| 16 | 16 | 0 | 19.087 | 19.093 | 6.65 | 71.7 | 57.09 |
-| 32 | 32 | 0 | 36.685 | 36.696 | 5.62 | 100.0 | 81.95 |
-| 64 | 64 | 0 | 230.797 | 230.820 | 3.30 | 56.5 | 290.01 |
+| 1 | 1 | 0 | 0.809 | 0.809 | 7.92 | 7.7 | 33.14 |
+| 2 | 2 | 0 | 1.362 | 1.548 | 7.89 | 15.1 | 33.87 |
+| 4 | 4 | 0 | 5.658 | 5.659 | 7.60 | 26.4 | 38.76 |
+| 8 | 8 | 0 | 17.999 | 18.003 | 7.25 | 39.1 | 52.39 |
+| 16 | 16 | 0 | 56.900 | 56.905 | 6.61 | 43.3 | 94.57 |
+| 32 | 32 | 0 | 114.874 | 114.883 | 5.63 | 51.3 | 159.68 |
+| 64 | 64 | 0 | 73.229 | 73.256 | 3.84 | 123.8 | 132.34 |
 
 Per-req gen tok/s = mean per-request generation rate (falls as concurrency rises and the GPU is shared). Aggregate tok/s = total output tokens across all concurrent requests / wall-clock (the server's real throughput under load).
 
@@ -72,12 +72,12 @@ Per-req gen tok/s = mean per-request generation rate (falls as concurrency rises
 
 | Task | Description | Metric | Value | Stderr | Samples |
 | --- | --- | --- | --- | --- | --- |
-| mmlu | General knowledge across 57 academic subjects | acc,none | 0.8544 | 0.0142 |  |
-| arc_challenge | Hard science exam questions (reasoning) | acc,none | 0.5674 | 0.0145 | 1172 |
-| arc_challenge | Hard science exam questions (reasoning) | acc_norm,none | 0.5870 | 0.0144 | 1172 |
+| mmlu | General knowledge across 57 academic subjects | acc,none | 0.8526 | 0.0143 |  |
+| arc_challenge | Hard science exam questions (reasoning) | acc,none | 0.5691 | 0.0145 | 1172 |
+| arc_challenge | Hard science exam questions (reasoning) | acc_norm,none | 0.5913 | 0.0144 | 1172 |
 | hellaswag | Commonsense sentence completion | acc,none | 0.6200 | 0.0488 | 100 |
-| hellaswag | Commonsense sentence completion | acc_norm,none | 0.7600 | 0.0429 | 100 |
-| mbpp | Coding: basic Python programming problems, graded by unit tests | pass_at_1,none | 0.4000 | 0.0219 | 500 |
+| hellaswag | Commonsense sentence completion | acc_norm,none | 0.7500 | 0.0435 | 100 |
+| mbpp | Coding: basic Python programming problems, graded by unit tests | pass_at_1,none | 0.4480 | 0.0223 | 500 |
 
 ## Tool calling (BFCL v4 via EvalScope)
 
@@ -85,19 +85,19 @@ Berkeley Function Calling Leaderboard v4 — exercises the recipe's real tool-ca
 
 | Subset / Category | Score | Samples |
 | --- | --- | --- |
-| Qwen3.8-27B-FP8@bfcl_v4 | 0.9029 |  |
-| acc | 0.9029 | 175 |
-| irrelevance | 1.0000 | 25 |
-| live_multiple | 0.7600 | 25 |
-| live_simple | 1.0000 | 25 |
+| Qwen3.8-27B-FP8@bfcl_v4 | 0.8914 |  |
+| acc | 0.8914 | 175 |
+| irrelevance | 0.9600 | 25 |
+| live_multiple | 0.7200 | 25 |
+| live_simple | 0.9200 | 25 |
 | multiple | 0.8800 | 25 |
-| parallel | 0.8400 | 25 |
-| parallel_multiple | 0.8800 | 25 |
+| parallel | 0.8800 | 25 |
+| parallel_multiple | 0.9200 | 25 |
 | simple_python | 0.9600 | 25 |
-| NON_LIVE | 0.8900 | 100 |
-| LIVE | 0.8800 | 50 |
-| HALLUCINATION | 1.0000 | 25 |
-| OVERALL | 0.2770 | 175 |
+| NON_LIVE | 0.9100 | 100 |
+| LIVE | 0.8200 | 50 |
+| HALLUCINATION | 0.9600 | 25 |
+| OVERALL | 0.2690 | 175 |
 
 ### Failed benchmarks
 
