@@ -187,7 +187,6 @@ def one_request(host, port, model, prompt_tokens, max_tokens, seed, timeout):
         "model": model,
         "prompt": make_prompt(prompt_tokens, seed),
         "max_tokens": max_tokens,
-        "temperature": 0,
         "ignore_eos": True,
     }).encode()
     req = urllib.request.Request(

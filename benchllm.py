@@ -536,7 +536,7 @@ def warmup(base_url: str, model: str, timeout: int = 600) -> None:
     r = requests.post(
         f"{base_url}/chat/completions",
         json={"model": model, "messages": [{"role": "user", "content": "Reply with the word ok."}],
-              "max_tokens": 8, "temperature": 0},
+              "max_tokens": 8},
         timeout=(30, timeout),
     )
     r.raise_for_status()
@@ -567,7 +567,6 @@ def stream_request(base_url: str, model: str, prompt: str, max_tokens: int,
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
         "max_tokens": max_tokens,
-        "temperature": 0,
         "stream": True,
         "stream_options": {"include_usage": True},
     }
