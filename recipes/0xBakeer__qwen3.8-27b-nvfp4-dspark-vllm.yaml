@@ -18,9 +18,9 @@ builder: eugr
 container: vllm/vllm-openai:v0.27.1-aarch64
 
 # vllm/vllm-openai ships a non-empty ENTRYPOINT (the author's script overrides
-# it with --entrypoint vllm). sparkrun launches the
-# serve command via `bash -c <cmd>`, so any non-empty ENTRYPOINT prefixes the
-# command and it fails. Empty string clears the image ENTRYPOINT.
+# it with --entrypoint vllm). sparkrun launches the serve command via
+# `bash -c <cmd>`, so any non-empty ENTRYPOINT prefixes the command and it
+# fails. Empty string clears the image ENTRYPOINT.
 executor_config:
   entrypoint: ""
 
@@ -61,6 +61,11 @@ defaults:
   # Swap-ins for the script's SPEC= modes:
   #   mtp : '{"method":"mtp","num_speculative_tokens":7}'
   #   off : delete the --speculative-config line from command
+  #
+  # NOTE: any spec decoding (dspark or mtp) corrupts vLLM's prompt_logprobs
+  # path on this box - lm-eval multiple-choice tasks either return
+  # HTTP 400 "Out of range float values are not JSON compliant: nan" or score
+  # at chance. Serve with spec decoding off when benchmarking MMLU/ARC/HellaSwag.
   speculative_config: '{"method":"dspark","model":"Doopeworld/Qwen3.8-27B-DSpark-vLLM","num_speculative_tokens":7,"draft_sample_method":"probabilistic"}'
 
   # Not set by the script, so sampling falls to the checkpoint's
@@ -80,7 +85,22 @@ env:
   VLLM_USE_FLASHINFER_MOE_FP4: "0"
 
 command: |
-  vllm serve {model}     --served-model-name {served_model_name}     --host {host}     --port {port}     -tp {tensor_parallel}     -pp {pipeline_parallel}     --max-model-len {max_model_len}     --gpu-memory-utilization {gpu_memory_utilization}     --max-num-batched-tokens {max_num_batched_tokens}     --enable-prefix-caching     --reasoning-parser {reasoning_parser}     --tool-call-parser {tool_call_parser}     --enable-auto-tool-choice     --limit-mm-per-prompt.image 2     --limit-mm-per-prompt.video 0     --speculative-config '{speculative_config}'
+  vllm serve {model} \
+    --served-model-name {served_model_name} \
+    --host {host} \
+    --port {port} \
+    -tp {tensor_parallel} \
+    -pp {pipeline_parallel} \
+    --max-model-len {max_model_len} \
+    --gpu-memory-utilization {gpu_memory_utilization} \
+    --max-num-batched-tokens {max_num_batched_tokens} \
+    --enable-prefix-caching \
+    --reasoning-parser {reasoning_parser} \
+    --tool-call-parser {tool_call_parser} \
+    --enable-auto-tool-choice \
+    --limit-mm-per-prompt.image 2 \
+    --limit-mm-per-prompt.video 0 \
+    --speculative-config '{speculative_config}'
 
 # sparkrun serves with HF_HUB_OFFLINE=1, so the drafter must already be in the
 # local HF cache when serve starts. sparkrun auto-adds the drafter parsed from
