@@ -1,0 +1,97 @@
+# Model:
+# https://huggingface.co/unsloth/Qwen3.8-27B-NVFP4
+#
+# DSpark drafter:
+# https://huggingface.co/Doopeworld/Qwen3.8-27B-DSpark-vLLM
+#
+# Port of 0xBakeer's startup.sh for a single DGX Spark (GB10 / SM121).
+# Author's noted alternative checkpoint: the AutoRound int4 build - same speed,
+# ~1.8x less KV cache, and it publishes quality numbers, which this Unsloth
+# NVFP4 build does not.
+
+recipe_version: '2'
+
+model: unsloth/Qwen3.8-27B-NVFP4
+
+runtime: vllm
+builder: eugr
+container: vllm/vllm-openai:v0.27.1-aarch64
+
+# vllm/vllm-openai ships a non-empty ENTRYPOINT (the author's script overrides
+# it with --entrypoint vllm). sparkrun launches the
+# serve command via `bash -c <cmd>`, so any non-empty ENTRYPOINT prefixes the
+# command and it fails. Empty string clears the image ENTRYPOINT.
+executor_config:
+  entrypoint: ""
+
+min_nodes: 1
+max_nodes: 1
+
+metadata:
+  description: "Qwen3.8-27B NVFP4 (Unsloth) - DSpark k=7 speculative decoding, prefix caching, 256K context"
+  model_params: 27B
+  model_dtype: nvfp4
+
+defaults:
+  host: 0.0.0.0
+  port: 8000
+
+  # Script used qwen3.8-27b on :8002; 8000 here to match the other recipes and
+  # benchllm's default probe.
+  served_model_name: qwen3.8-27b
+
+  tensor_parallel: 1
+  pipeline_parallel: 1
+
+  gpu_memory_utilization: 0.85
+  max_model_len: 262144
+
+  # Draft slots come out of the batch token budget. Raise this when raising k:
+  # k * max_num_seqs over this budget makes max_num_scheduled_tokens negative
+  # at startup.
+  max_num_batched_tokens: 16384
+
+  reasoning_parser: qwen3
+  tool_call_parser: qwen3_xml
+
+  # No --quantization: the script omits it and lets vLLM read the packing from
+  # the checkpoint config. Do not add it unless detection fails.
+
+  # DSpark: external ~1B 5-layer drafter emitting a block of k tokens per pass.
+  # Swap-ins for the script's SPEC= modes:
+  #   mtp : '{"method":"mtp","num_speculative_tokens":7}'
+  #   off : delete the --speculative-config line from command
+  speculative_config: '{"method":"dspark","model":"Doopeworld/Qwen3.8-27B-DSpark-vLLM","num_speculative_tokens":7,"draft_sample_method":"probabilistic"}'
+
+  # Not set by the script, so sampling falls to the checkpoint's
+  # generation_config.json (Qwen3.8: temperature 1.0, top_k 20, top_p 0.95).
+  # To pin it, uncomment and add --override-generation-config '{generation_config}'
+  # to command:
+  # generation_config: '{"temperature":0.6,"top_p":0.95,"top_k":20}'
+
+# VLLM_MARLIN_USE_ATOMIC_ADD is not optional on SM121: without it a race in the
+# Marlin kernel produces INCORRECT OUTPUT rather than an error, and 4-bit
+# weights are dequantized through Marlin on this device, so it sits directly in
+# the decode path. VLLM_USE_FLASHINFER_MOE_FP4=0 keeps the MoE path away from
+# CUTLASS FP4, reported to emit silent garbage here - unused by this dense
+# model, cheap insurance.
+env:
+  VLLM_MARLIN_USE_ATOMIC_ADD: "1"
+  VLLM_USE_FLASHINFER_MOE_FP4: "0"
+
+command: |
+  vllm serve {model}     --served-model-name {served_model_name}     --host {host}     --port {port}     -tp {tensor_parallel}     -pp {pipeline_parallel}     --max-model-len {max_model_len}     --gpu-memory-utilization {gpu_memory_utilization}     --max-num-batched-tokens {max_num_batched_tokens}     --enable-prefix-caching     --reasoning-parser {reasoning_parser}     --tool-call-parser {tool_call_parser}     --enable-auto-tool-choice     --limit-mm-per-prompt.image 2     --limit-mm-per-prompt.video 0     --speculative-config '{speculative_config}'
+
+# sparkrun serves with HF_HUB_OFFLINE=1, so the drafter must already be in the
+# local HF cache when serve starts. sparkrun auto-adds the drafter parsed from
+# speculative_config; listed explicitly here for clarity. A custom
+# distribution_config replaces the auto default, so {model} and {container} are
+# re-listed.
+distribution_config:
+  models:
+    entries:
+      - name: "{model}"
+      - name: Doopeworld/Qwen3.8-27B-DSpark-vLLM
+  containers:
+    entries:
+      - name: "{container}"
