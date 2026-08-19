@@ -1,6 +1,6 @@
 # @eugr/nemotron-3-nano-nvfp4 benchmark results
 
-Generated UTC: 2026-07-13T20:13:09.455719+00:00
+Generated UTC: 2026-08-18T11:31:48.577738+00:00
 
 ## Run
 
@@ -12,11 +12,11 @@ Generated UTC: 2026-07-13T20:13:09.455719+00:00
 | Runtime | vllm-distributed |
 | Container | vllm-node |
 | Base URL | http://127.0.0.1:8000/v1 |
-| Host | Linux 6.17.0-1026-nvidia aarch64 GNU/Linux |
+| Host | Linux 6.17.0-1029-nvidia aarch64 GNU/Linux |
 | GPU | NVIDIA GB10 |
-| Output dir | /home/mrpmorris/sparkrun-recipes/bench-results/eugr__nemotron-3-nano-nvfp4/20260713-190750 |
+| Output dir | /home/mrpmorris/sparkrun-recipes/bench-results/eugr__nemotron-3-nano-nvfp4/20260818-102903 |
 | Command | /home/mrpmorris/sparkrun-recipes/benchllm.py --recipe @eugr/nemotron-3-nano-nvfp4 --cleanup |
-| Total duration | 3919 s |
+| Total duration | 3766 s |
 
 ## Recipe settings
 
@@ -32,12 +32,12 @@ Generated UTC: 2026-07-13T20:13:09.455719+00:00
 
 | Prompt tokens | Server prompt tokens | TTFT s | TPOT ms | Prefill tok/s | Generation tok/s | Total s |
 | --- | --- | --- | --- | --- | --- | --- |
-| 256 | 277 | 0.128 | 17.1 | 2165.9 | 58.55 | 4.50 |
-| 1024 | 1044 | 0.205 | 17.1 | 5101.7 | 58.55 | 4.58 |
-| 4096 | 4118 | 0.654 | 17.2 | 6298.5 | 58.38 | 5.04 |
-| 16384 | 16404 | 2.528 | 17.3 | 6489.8 | 57.93 | 6.95 |
-| 65536 | 65559 | 11.927 | 17.8 | 5496.7 | 56.27 | 16.48 |
-| 259267 | 259285 | 78.191 | 19.8 | 3316.0 | 50.71 | 83.24 |
+| 256 | 279 | 0.134 | 17.0 | 2077.4 | 59.10 | 4.47 |
+| 1024 | 1045 | 0.186 | 17.0 | 5609.3 | 59.17 | 4.51 |
+| 4096 | 4116 | 0.633 | 17.0 | 6500.0 | 59.14 | 4.96 |
+| 16384 | 16405 | 2.573 | 17.1 | 6376.4 | 58.60 | 6.94 |
+| 65536 | 65558 | 12.508 | 17.7 | 5241.1 | 56.79 | 17.02 |
+| 259267 | 259287 | 81.474 | 20.0 | 3182.4 | 50.27 | 86.57 |
 
 TTFT = time to first token. TPOT = time per output token (mean inter-token latency after the first token). Prefill tok/s = prompt tokens / TTFT. Generation tok/s = output tokens per second after the first token.
 
@@ -49,31 +49,30 @@ Recipe declares no max_num_seqs / max_batch_size — full ladder run.
 
 | Concurrency | OK | Failed | TTFT p50 s | TTFT p95 s | Per-req gen tok/s | Aggregate tok/s | Wall s |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 1 | 0 | 0.206 | 0.206 | 58.37 | 55.8 | 4.59 |
-| 2 | 2 | 0 | 0.382 | 0.384 | 54.30 | 100.3 | 5.10 |
-| 4 | 4 | 0 | 0.698 | 0.702 | 45.13 | 161.6 | 6.33 |
-| 8 | 8 | 0 | 1.205 | 1.321 | 38.16 | 261.1 | 7.84 |
-| 16 | 16 | 0 | 1.853 | 2.556 | 27.48 | 365.1 | 11.22 |
-| 32 | 32 | 0 | 3.073 | 5.076 | 19.64 | 498.8 | 16.42 |
-| 64 | 64 | 0 | 5.611 | 10.502 | 12.75 | 612.8 | 26.73 |
+| 1 | 1 | 0 | 0.188 | 0.188 | 58.50 | 56.1 | 4.56 |
+| 2 | 2 | 0 | 0.289 | 0.357 | 52.56 | 99.1 | 5.17 |
+| 4 | 4 | 0 | 0.588 | 0.663 | 44.97 | 164.4 | 6.23 |
+| 8 | 8 | 0 | 0.972 | 1.265 | 33.80 | 240.3 | 8.52 |
+| 16 | 16 | 0 | 1.557 | 2.472 | 25.30 | 348.1 | 11.77 |
+| 32 | 32 | 0 | 2.745 | 4.808 | 17.48 | 462.6 | 17.71 |
+| 64 | 64 | 0 | 5.151 | 9.957 | 12.11 | 598.7 | 27.37 |
 
 Per-req gen tok/s = mean per-request generation rate (falls as concurrency rises and the GPU is shared). Aggregate tok/s = total output tokens across all concurrent requests / wall-clock (the server's real throughput under load).
 
 ## Intelligence (lm-eval)
 
-6 task(s) completed, 0 failed.
+5 task(s) completed, 1 failed.
 
 | Task | Description | Metric | Value | Stderr | Samples |
 | --- | --- | --- | --- | --- | --- |
-| mmlu | General knowledge across 57 academic subjects | acc,none | 0.7105 | 0.0180 |  |
-| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,strict-match | 0.8249 | 0.0105 | 1319 |
-| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,flexible-extract | 0.4738 | 0.0138 | 1319 |
-| arc_challenge | Hard science exam questions (reasoning) | acc,none | 0.4514 | 0.0145 | 1172 |
-| arc_challenge | Hard science exam questions (reasoning) | acc_norm,none | 0.4778 | 0.0146 | 1172 |
-| hellaswag | Commonsense sentence completion | acc,none | 0.5200 | 0.0502 | 100 |
+| mmlu | General knowledge across 57 academic subjects | acc,none | 0.7035 | 0.0180 |  |
+| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,strict-match | 0.8340 | 0.0102 | 1319 |
+| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,flexible-extract | 0.4769 | 0.0138 | 1319 |
+| arc_challenge | Hard science exam questions (reasoning) | acc,none | 0.4497 | 0.0145 | 1172 |
+| arc_challenge | Hard science exam questions (reasoning) | acc_norm,none | 0.4693 | 0.0146 | 1172 |
+| hellaswag | Commonsense sentence completion | acc,none | 0.5300 | 0.0502 | 100 |
 | hellaswag | Commonsense sentence completion | acc_norm,none | 0.6600 | 0.0476 | 100 |
-| humaneval | Coding: write Python functions that pass unit tests | pass@1,create_test | 0.2195 | 0.0324 | 164 |
-| mbpp | Coding: basic Python programming problems, graded by unit tests | pass_at_1,none | 0.5960 | 0.0220 | 500 |
+| mbpp | Coding: basic Python programming problems, graded by unit tests | pass_at_1,none | 0.5940 | 0.0220 | 500 |
 
 ## Tool calling (BFCL v4 via EvalScope)
 
@@ -81,19 +80,31 @@ Berkeley Function Calling Leaderboard v4 — exercises the recipe's real tool-ca
 
 | Subset / Category | Score | Samples |
 | --- | --- | --- |
-| NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4@bfcl_v4 | 0.9086 |  |
-| acc | 0.9086 | 175 |
+| NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4@bfcl_v4 | 0.8971 |  |
+| acc | 0.8971 | 175 |
 | irrelevance | 0.9600 | 25 |
-| live_multiple | 0.6400 | 25 |
-| live_simple | 0.9600 | 25 |
-| multiple | 0.9200 | 25 |
-| parallel | 0.9600 | 25 |
+| live_multiple | 0.6800 | 25 |
+| live_simple | 0.8800 | 25 |
+| multiple | 0.9600 | 25 |
+| parallel | 0.9200 | 25 |
 | parallel_multiple | 0.9600 | 25 |
-| simple_python | 0.9600 | 25 |
-| NON_LIVE | 0.9500 | 100 |
-| LIVE | 0.8000 | 50 |
+| simple_python | 0.9200 | 25 |
+| NON_LIVE | 0.9400 | 100 |
+| LIVE | 0.7800 | 50 |
 | HALLUCINATION | 0.9600 | 25 |
-| OVERALL | 0.2710 | 175 |
+| OVERALL | 0.2680 | 175 |
+
+### Failed benchmarks
+
+These benchmarks could not complete as the model is currently served — a failure here is itself a result: the model/config could not perform this evaluation. Multiple-choice tasks (acc / acc_norm) request token log-probabilities from the inference server; generative tasks do not.
+
+Code: `OOM` out-of-memory kill · `CRASH` fatal engine error in the serve log · `HANG` server alive but stopped generating · `STARTUP` server could not be (re)started · `UNSUPPORTED` server can't perform this eval · `ERROR` step failed with the server still healthy.
+
+| Task | Code | Description | Reason | Log |
+| --- | --- | --- | --- | --- |
+| humaneval | ERROR | Coding: write Python functions that pass unit tests | HTTP 400 from inference server: 2 validation errors:
+  {'type': 'string_type', 'loc': ('body', 'stop', 'str'), 'msg': 'Input should be a valid string', 'input': ['\nclass', '\ndef', '\n#', '\nif', '\nprint']}
+  {'type': 'too_long', 'loc': ('body', 'stop', 'list[str]'), 'msg': 'List should have at most 4 items after validation, not 5', 'input': ['\nclass', '\ndef', '\n#', '\nif', '\nprint'], 'ctx': | lm-eval-humaneval.log |
 
 ## Warnings
 
