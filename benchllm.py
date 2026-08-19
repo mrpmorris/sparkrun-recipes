@@ -463,6 +463,43 @@ def read_serve_log(max_bytes: int = 20000) -> str:
         return ""
 
 
+def serve_pid_alive():
+    """Liveness of the serve process inside the running solo container.
+
+    sparkrun containers run `sleep infinity` as PID 1 and exec the serve as a
+    child that writes /tmp/sparkrun_serve.pid, so the container being "Up"
+    proves nothing. Returns True (alive), False (pid file present but process
+    gone = crashed), or None (no container / no pid file yet / docker error =
+    unknown; callers must not treat unknown as alive).
+    """
+    try:
+        names = subprocess.run(
+            ["docker", "ps", "--format", "{{.Names}}"],
+            capture_output=True, text=True, timeout=10,
+        ).stdout.split()
+    except Exception:  # noqa: BLE001
+        return None
+    solo = next((n for n in names if n.endswith("_solo")), None)
+    if not solo:
+        return None
+    try:
+        out = subprocess.run(
+            ["docker", "exec", solo, "sh", "-c",
+             'p=$(cat /tmp/sparkrun_serve.pid 2>/dev/null); '
+             'if [ -z "$p" ]; then echo NOPID; '
+             'elif [ -d "/proc/$p" ]; then echo ALIVE; else echo DEAD; fi'],
+            capture_output=True, text=True, timeout=10,
+        )
+        verdict = out.stdout.strip()
+    except Exception:  # noqa: BLE001
+        return None
+    if verdict == "ALIVE":
+        return True
+    if verdict == "DEAD":
+        return False
+    return None
+
+
 def fatal_serve_error(text: str):
     """Return a concise error string if the serve log shows a fatal startup
     failure, else None. Matches exception lines (XxxError: msg), argparse/CLI
@@ -471,6 +508,12 @@ def fatal_serve_error(text: str):
         return None
     hit = None
     for line in text.splitlines():
+        # A WARNING-tagged line is an exception the engine already caught and
+        # survived (e.g. vLLM's import_utils logs optional-dep ImportError
+        # tracebacks as WARNING - deep_ep on the AEON images). Treating those
+        # as fatal killed healthy servers mid model-load (2026-08-19).
+        if "WARNING" in line:
+            continue
         m = _ERR_LINE.search(line)
         if m:
             hit = f"{m.group(1)}: {m.group(2).strip()}"
@@ -505,6 +548,11 @@ def wait_for_ready(base_url: str, timeout: int) -> None:
         if time.monotonic() - last_crash_check > 15:
             last_crash_check = time.monotonic()
             err = fatal_serve_error(read_serve_log())
+            if err and serve_pid_alive() is True:
+                # Error-shaped line in the log but the serve process is still
+                # running: startup noise, not a crash. Only a dead (or
+                # unverifiable) serve process counts toward a strike.
+                err = None
             if err:
                 crash_strikes += 1
                 if crash_strikes >= 2:

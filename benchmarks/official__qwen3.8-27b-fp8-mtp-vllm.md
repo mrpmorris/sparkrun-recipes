@@ -1,6 +1,6 @@
 # @official/qwen3.8-27b-fp8-mtp-vllm benchmark results
 
-Generated UTC: 2026-08-18T21:46:17.537051+00:00
+Generated UTC: 2026-08-19T15:48:30.155130+00:00
 
 ## Run
 
@@ -14,9 +14,9 @@ Generated UTC: 2026-08-18T21:46:17.537051+00:00
 | Base URL | http://127.0.0.1:8000/v1 |
 | Host | Linux 6.17.0-1029-nvidia aarch64 GNU/Linux |
 | GPU | NVIDIA GB10 |
-| Output dir | /home/mrpmorris/sparkrun-recipes/bench-results/official__qwen3.8-27b-fp8-mtp-vllm/20260818-192546 |
-| Command | /home/mrpmorris/sparkrun-recipes/benchllm.py --recipe @official/qwen3.8-27b-fp8-mtp-vllm --cleanup |
-| Total duration | 8431 s |
+| Output dir | /home/mrpmorris/sparkrun-recipes/bench-results/official__qwen3.8-27b-fp8-mtp-vllm/20260819-133453 |
+| Command | /home/mrpmorris/sparkrun-recipes/benchllm.py --recipe @official/qwen3.8-27b-fp8-mtp-vllm |
+| Total duration | 8016 s |
 
 ## Recipe settings
 
@@ -41,12 +41,12 @@ Generated UTC: 2026-08-18T21:46:17.537051+00:00
 
 | Prompt tokens | Server prompt tokens | TTFT s | TPOT ms | Prefill tok/s | Generation tok/s | Total s |
 | --- | --- | --- | --- | --- | --- | --- |
-| 256 | 315 | 0.286 | 57.9 | 1103.0 | 17.33 | 15.06 |
-| 1024 | 1081 | 0.845 | 62.9 | 1279.2 | 15.96 | 16.88 |
-| 4096 | 4156 | 2.251 | 66.0 | 1846.7 | 15.21 | 19.08 |
-| 16384 | 16443 | 20.540 | 78.2 | 800.6 | 12.83 | 40.49 |
-| 65536 | 65596 | 88.401 | 75.0 | 742.0 | 13.39 | 107.52 |
-| 259267 | 259325 | 539.948 | 67.1 | 480.3 | 14.96 | 557.06 |
+| 256 | 313 | 0.292 | 56.5 | 1073.5 | 17.75 | 14.71 |
+| 1024 | 1084 | 0.753 | 58.5 | 1438.6 | 17.15 | 15.68 |
+| 4096 | 4151 | 4.701 | 55.4 | 882.9 | 18.12 | 18.83 |
+| 16384 | 16442 | 20.636 | 73.8 | 796.8 | 13.61 | 39.44 |
+| 65536 | 65594 | 93.186 | 71.0 | 703.9 | 14.15 | 111.28 |
+| 259267 | 259322 | 550.207 | 79.3 | 471.3 | 12.65 | 570.44 |
 
 TTFT = time to first token. TPOT = time per output token (mean inter-token latency after the first token). Prefill tok/s = prompt tokens / TTFT. Generation tok/s = output tokens per second after the first token.
 
@@ -58,26 +58,29 @@ Recipe declares no max_num_seqs / max_batch_size — full ladder run.
 
 | Concurrency | OK | Failed | TTFT p50 s | TTFT p95 s | Per-req gen tok/s | Aggregate tok/s | Wall s |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 1 | 0 | 0.617 | 0.617 | 21.94 | 20.8 | 12.29 |
-| 2 | 2 | 0 | 1.534 | 1.692 | 14.09 | 23.6 | 21.70 |
-| 4 | 4 | 0 | 5.935 | 5.936 | 15.50 | 40.1 | 25.55 |
-| 8 | 8 | 0 | 9.505 | 9.508 | 13.73 | 66.5 | 30.81 |
-| 16 | 16 | 0 | 59.024 | 59.028 | 12.59 | 49.1 | 83.47 |
-| 32 | 32 | 0 | 66.806 | 78.092 | 7.06 | 73.8 | 111.03 |
-| 64 | 64 | 0 | 208.671 | 239.438 | 3.22 | 56.9 | 287.81 |
+| 1 | 1 | 0 | 0.610 | 0.610 | 17.47 | 16.8 | 15.27 |
+| 2 | 2 | 0 | 1.287 | 1.445 | 16.96 | 29.7 | 17.27 |
+| 4 | 4 | 0 | 2.684 | 2.685 | 16.88 | 47.9 | 21.36 |
+| 8 | 8 | 0 | 10.022 | 10.025 | 15.55 | 67.9 | 30.17 |
+| 16 | 16 | 0 | 55.762 | 55.767 | 13.39 | 52.8 | 77.52 |
+| 32 | 32 | 0 | 100.591 | 111.253 | 7.21 | 57.2 | 143.18 |
+| 64 | 64 | 0 | 126.521 | 155.751 | 3.52 | 80.2 | 204.23 |
 
 Per-req gen tok/s = mean per-request generation rate (falls as concurrency rises and the GPU is shared). Aggregate tok/s = total output tokens across all concurrent requests / wall-clock (the server's real throughput under load).
 
 ## Intelligence (lm-eval)
 
-3 task(s) completed, 3 failed.
+4 task(s) completed, 2 failed.
+
+_humaneval ran with 4 of its 5 `until` stop sequences (`\nprint` dropped): vLLM 0.27+ enforces the OpenAI cap of 4 `stop` entries, and lm-eval's local-completions path does not trim (its chat paths do). Applied by patch-lm-eval-stop.py. Not bit-identical to canonical HumanEval - do not quote pass@1 against published figures without this caveat._
 
 | Task | Description | Metric | Value | Stderr | Samples |
 | --- | --- | --- | --- | --- | --- |
-| mmlu | General knowledge across 57 academic subjects | acc,none | 0.2947 | 0.0187 |  |
-| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,strict-match | 0.6755 | 0.0129 | 1319 |
-| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,flexible-extract | 0.6983 | 0.0126 | 1319 |
-| mbpp | Coding: basic Python programming problems, graded by unit tests | pass_at_1,none | 0.4060 | 0.0220 | 500 |
+| mmlu | General knowledge across 57 academic subjects | acc,none | 0.2719 | 0.0182 |  |
+| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,strict-match | 0.6694 | 0.0130 | 1319 |
+| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,flexible-extract | 0.6975 | 0.0127 | 1319 |
+| humaneval | Coding: write Python functions that pass unit tests | pass@1,create_test | 0.7927 | 0.0318 | 164 |
+| mbpp | Coding: basic Python programming problems, graded by unit tests | pass_at_1,none | 0.4240 | 0.0221 | 500 |
 
 ## Tool calling (BFCL v4 via EvalScope)
 
@@ -85,19 +88,19 @@ Berkeley Function Calling Leaderboard v4 — exercises the recipe's real tool-ca
 
 | Subset / Category | Score | Samples |
 | --- | --- | --- |
-| Qwen3.8-27B-FP8@bfcl_v4 | 0.8971 |  |
-| acc | 0.8971 | 175 |
+| Qwen3.8-27B-FP8@bfcl_v4 | 0.9143 |  |
+| acc | 0.9143 | 175 |
 | irrelevance | 1.0000 | 25 |
-| live_multiple | 0.6400 | 25 |
-| live_simple | 0.9200 | 25 |
-| multiple | 0.8800 | 25 |
-| parallel | 0.9600 | 25 |
-| parallel_multiple | 0.9200 | 25 |
-| simple_python | 0.9600 | 25 |
-| NON_LIVE | 0.9300 | 100 |
-| LIVE | 0.7800 | 50 |
+| live_multiple | 0.8000 | 25 |
+| live_simple | 1.0000 | 25 |
+| multiple | 0.9200 | 25 |
+| parallel | 0.8800 | 25 |
+| parallel_multiple | 0.8800 | 25 |
+| simple_python | 0.9200 | 25 |
+| NON_LIVE | 0.9000 | 100 |
+| LIVE | 0.9000 | 50 |
 | HALLUCINATION | 1.0000 | 25 |
-| OVERALL | 0.2710 | 175 |
+| OVERALL | 0.2800 | 175 |
 
 ### Failed benchmarks
 
@@ -109,9 +112,6 @@ Code: `OOM` out-of-memory kill · `CRASH` fatal engine error in the serve log ·
 | --- | --- | --- | --- | --- |
 | arc_challenge | ERROR | Hard science exam questions (reasoning) | HTTP 400 from inference server: Out of range float values are not JSON compliant: nan | lm-eval-arc_challenge.log |
 | hellaswag | ERROR | Commonsense sentence completion | HTTP 400 from inference server: Out of range float values are not JSON compliant: nan | lm-eval-hellaswag.log |
-| humaneval | ERROR | Coding: write Python functions that pass unit tests | HTTP 400 from inference server: 2 validation errors:
-  {'type': 'string_type', 'loc': ('body', 'stop', 'str'), 'msg': 'Input should be a valid string', 'input': ['\nclass', '\ndef', '\n#', '\nif', '\nprint']}
-  {'type': 'too_long', 'loc': ('body', 'stop', 'list[str]'), 'msg': 'List should have at most 4 items after validation, not 5', 'input': ['\nclass', '\ndef', '\n#', '\nif', '\nprint'], 'ctx': | lm-eval-humaneval.log |
 
 ## Warnings
 
