@@ -889,6 +889,42 @@ def probe_loglikelihood_support(base_url: str, model: str) -> bool:
 # lm-eval refuses to run them without an explicit opt-in flag.
 CODE_TASKS = {"humaneval", "humaneval_plus", "humaneval_64", "mbpp", "mbpp_plus"}
 
+# Footnote emitted with the intelligence table whenever a humaneval variant ran.
+HUMANEVAL_STOP_NOTE = (
+    "_humaneval ran with 4 of its 5 `until` stop sequences (`\\nprint` dropped): "
+    "vLLM 0.27+ enforces the OpenAI cap of 4 `stop` entries, and lm-eval's "
+    "local-completions path does not trim (its chat paths do). Applied by "
+    "patch-lm-eval-stop.py. Not bit-identical to canonical HumanEval - do not "
+    "quote pass@1 against published figures without this caveat._"
+)
+
+_STOP_PATCH_DONE = False
+
+
+def ensure_lm_eval_stop_patch() -> None:
+    """Re-assert the lm-eval stop[:4] patch once per process.
+
+    benchllm.sh applies it after building the venv, but generate-comparison.sh
+    shares that venv and rebuilds it on a deps-hash change, which would wipe
+    the patch and silently cost every humaneval request an HTTP 400.
+    """
+    global _STOP_PATCH_DONE
+    if _STOP_PATCH_DONE:
+        return
+    _STOP_PATCH_DONE = True
+    script = Path(__file__).resolve().parent / "patch-lm-eval-stop.py"
+    if not script.is_file():
+        log(f"lm-eval stop patch: {script} missing; humaneval may fail with "
+            f"HTTP 400 'stop: too_long'")
+        return
+    r = subprocess.run([sys.executable, str(script)],
+                       capture_output=True, text=True)
+    out = (r.stdout + r.stderr).strip()
+    if r.returncode != 0:
+        log(f"lm-eval stop patch FAILED: {out}")
+    elif "already patched" not in out:
+        log(out)
+
 TASK_DESCRIPTIONS = {
     "mmlu": "General knowledge across 57 academic subjects",
     "gsm8k": "Grade-school math word problems (multi-step reasoning)",
@@ -977,6 +1013,7 @@ def stream_process(cmd, log_path, env=None, stall_s=None, hard_cap_s=None, poll_
 def run_lm_eval_task(task: str, base_url: str, model: str, tokenizer: str, limit: int,
                      concurrency: int, outdir: Path) -> tuple[list[dict], str | None]:
     """Run one lm-eval task. Returns (metric rows, error string or None)."""
+    ensure_lm_eval_stop_patch()
     eval_dir = outdir / f"lm-eval-{task}"
     eval_dir.mkdir(parents=True, exist_ok=True)
     # model= is the API alias (served_model_name) and need not exist on the HF
@@ -1276,6 +1313,8 @@ def write_report(report_path: Path, ctx: dict) -> None:
         succeeded = {r["task"] for r in ctx["eval_rows"]}
         failed = {f["task"] for f in failures}
         lines += [f"{len(succeeded)} task(s) completed, {len(failed)} failed.", ""]
+        if any(t.startswith("humaneval") for t in (succeeded | failed)):
+            lines += [HUMANEVAL_STOP_NOTE, ""]
         if ctx["eval_rows"]:
             lines += ["| Task | Description | Metric | Value | Stderr | Samples |",
                       "| --- | --- | --- | --- | --- | --- |"]

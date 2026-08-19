@@ -1,7 +1,22 @@
 recipe_version: '2'
 model: nvidia/NVIDIA-Nemotron-Labs-3-Puzzle-75B-A9B-NVFP4
 runtime: vllm
-container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly:latest
+# Image pinned by digest 2026-08-19. :latest floated from the build that ran
+# this recipe clean on 2026-07-17 (6323 s, MMLU 0.8404) to nightly-20260818
+# (vllm 0.27.2rc1.dev209+gf9f066d19), and on 2026-08-19 03:48 the 75B load
+# drove unified memory to 0% MemAvailable and livelocked the box - earlyoom
+# could not kill anything, needed a power cycle. Pin stops further drift.
+# NOTE: there is no stable channel to pin instead - upstream
+# docker.io/eugr/spark-vllm publishes :latest and :nightly-YYYYMMDD at the
+# SAME digest (checked 2026-08-19: both sha256:d0dce850...), and the ghcr
+# mirror has exactly one non-dated tag, :latest. So this digest is both
+# :latest and nightly-20260818, i.e. also the suspect build. The
+# July image was pruned and its digest is unrecoverable, so there is no known
+# good build to pin instead. Pinning alone does not make the 75B safe here -
+# gpu_memory_utilization 0.8 of 121 GB leaves ~24 GB for host + loader, which
+# is why the AEON recipes hard-cap at 0.6. Lower gmu before re-running this.
+# Re-pin with: docker inspect <ref> --format '{{index .RepoDigests 0}}'
+container: ghcr.io/spark-arena/dgx-vllm-eugr-nightly@sha256:030fa81ed02b59a45e12ebdb1e6f85e952425cf29a3de7ce141a098c81aab9cc
 min_nodes: 1
 max_nodes: 1
 metadata:

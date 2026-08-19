@@ -46,6 +46,12 @@ if [[ ! -f "$MARKER" || "$(cat "$MARKER" 2>/dev/null)" != "$DEPS_HASH" ]]; then
   printf '%s' "$DEPS_HASH" > "$MARKER"
 fi
 
+# lm-eval 0.4.12 sends humaneval's 5 `until` entries as `stop` on the
+# local-completions path, and vLLM 0.27+ rejects >4 (OpenAI cap) with an
+# HTTP 400 per request. Re-applied on every run because a venv rebuild above
+# wipes it; idempotent, and exits non-zero if lm-eval moved the line.
+"$VENV/bin/python" "$SCRIPT_DIR/patch-lm-eval-stop.py"
+
 # Build the BFCL venv by default; skip only when the run opts out.
 SKIP_BFCL=0
 for arg in "$@"; do
