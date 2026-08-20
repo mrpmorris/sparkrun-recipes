@@ -99,12 +99,26 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--steps", type=int, default=8, help="Number of prompt-size steps up to the ceiling (default 8, i.e. max/8 increments)")
     p.add_argument("--output-tokens", type=int, default=256, help="Generation length for speed tests (default 256)")
     p.add_argument("--eval-tasks", default="mmlu:10,gsm8k:0,arc_challenge:0,hellaswag,humaneval:0,mbpp:0",
-                   help="lm-eval tasks, each optionally with its own sample limit as task:limit. "
-                        "MMLU has 57 subtasks and the limit applies per subtask, so it defaults to 10 "
-                        "(= 570 questions); gsm8k/arc_challenge/humaneval/mbpp run full (:0) since each is <20m at full size, hellaswag stays at --eval-limit. (default mmlu:10,gsm8k:0,arc_challenge:0,hellaswag,humaneval:0,mbpp:0)")
+                   help="lm-eval tasks, each optionally with its own sample limit as task:limit "
+                        "(:0 = every sample in the set). MMLU has 57 subtasks and the limit applies "
+                        "per subtask, so it defaults to 10 (= 570 questions); gsm8k/arc_challenge/"
+                        "humaneval/mbpp run full (:0), hellaswag stays at --eval-limit. Full MMLU + "
+                        "HellaSwag (:0 everywhere, --eval-limit 0) cost roughly +3h per model. "
+                        "(default mmlu:10,gsm8k:0,arc_challenge:0,hellaswag,humaneval:0,mbpp:0)")
     p.add_argument("--eval-limit", type=int, default=100,
                    help="Samples per lm-eval task without an explicit task:limit, 0 = full run (default 100)")
     p.add_argument("--eval-concurrency", type=int, default=4, help="Concurrent lm-eval requests (default 4)")
+    p.add_argument("--eval-completions-only", action="store_true",
+                   help="Score generative tasks (gsm8k/humaneval/mbpp) as raw text completions on "
+                        "/v1/completions instead of chat. Default is chat: an instruct/reasoning "
+                        "model scored as raw completions answers in the wrong shape and "
+                        "under-scores badly (Qwen3.8-27B: gsm8k 66 vs a published 92). "
+                        "Multiple-choice tasks always use /v1/completions (loglikelihood is not "
+                        "available on the chat endpoint).")
+    p.add_argument("--eval-chat-max-gen-toks", type=int, default=2048,
+                   help="Generation budget per chat-scored task (default 2048). A reasoning model "
+                        "spends most of this thinking; lm-eval's 256-token default truncates the "
+                        "answer away entirely.")
     p.add_argument("--skip-bfcl", action="store_true",
                    help="Skip the BFCL v4 tool-calling benchmark (runs by default, via EvalScope, against "
                         "the recipe's tools API; needs the .benchllm-bfcl-venv that benchllm.sh builds).")
@@ -1058,29 +1072,56 @@ def stream_process(cmd, log_path, env=None, stall_s=None, hard_cap_s=None, poll_
     return proc.returncode, None
 
 
+def chat_scored(task: str, completions_only: bool) -> bool:
+    """Should this task be scored over /v1/chat/completions?
+
+    Multiple-choice tasks never can: they need echo+logprobs, and lm-eval's
+    LocalChatCompletion.loglikelihood raises NotImplementedError. Everything
+    else is generative and belongs on the chat endpoint, because that is the
+    protocol an instruct/reasoning model was tuned for and the one published
+    numbers are produced with.
+    """
+    return not completions_only and task not in LOGLIKELIHOOD_TASKS
+
+
 def run_lm_eval_task(task: str, base_url: str, model: str, tokenizer: str, limit: int,
-                     concurrency: int, outdir: Path) -> tuple[list[dict], str | None]:
+                     concurrency: int, outdir: Path, completions_only: bool = False,
+                     chat_max_gen_toks: int = 2048) -> tuple[list[dict], str | None]:
     """Run one lm-eval task. Returns (metric rows, error string or None)."""
     ensure_lm_eval_stop_patch()
     eval_dir = outdir / f"lm-eval-{task}"
     eval_dir.mkdir(parents=True, exist_ok=True)
+    chat = chat_scored(task, completions_only)
+    # Chat scoring sends the task's prompt through the model's chat template and
+    # reads choices[].message.content, so a `--reasoning-parser` server keeps its
+    # thinking in reasoning_content and only the answer is graded. Fewshot
+    # examples become prior turns (--fewshot_as_multiturn is implied by
+    # --apply_chat_template), which is what teaches the answer format the task's
+    # extractor expects.
+    endpoint = "chat/completions" if chat else "completions"
     # model= is the API alias (served_model_name) and need not exist on the HF
     # Hub; the tokenizer must be loaded from the recipe's real model repo.
     model_args = (
         f"model={model},"
         f"tokenizer={tokenizer},"
-        f"base_url={base_url}/completions,"
+        f"base_url={base_url}/{endpoint},"
         f"num_concurrent={concurrency},"
         f"max_retries=8,"
         f"max_length=8192,"
         f"tokenized_requests=False"
     )
     cmd = [sys.executable, "-m", "lm_eval",
-           "--model", "local-completions",
+           "--model", "local-chat-completions" if chat else "local-completions",
            "--model_args", model_args,
            "--tasks", task,
            "--output_path", str(eval_dir),
            "--batch_size", "1"]
+    if chat:
+        # Tasks that omit max_gen_toks fall back to lm-eval's 256, which a
+        # reasoning model burns entirely on thinking; --gen_kwargs overrides the
+        # task yaml so the answer still fits.
+        cmd += ["--apply_chat_template",
+                "--gen_kwargs", f"max_gen_toks={chat_max_gen_toks}"]
     if limit > 0:
         cmd += ["--limit", str(limit)]
     env = dict(os.environ)
@@ -1090,7 +1131,8 @@ def run_lm_eval_task(task: str, base_url: str, model: str, tokenizer: str, limit
         cmd += ["--confirm_run_unsafe_code"]
         env["HF_ALLOW_CODE_EVAL"] = "1"
 
-    log(f"lm-eval: {task} (limit={limit or 'full'})")
+    log(f"lm-eval: {task} (limit={limit or 'full'}, "
+        f"{'chat' if chat else 'completions'} endpoint)")
     log_path = outdir / f"lm-eval-{task}.log"
     # Watchdog: an eval must keep writing to its log (stall limit) and finish
     # within a hard cap, else it is killed — one bad task must not wedge a
@@ -1455,10 +1497,23 @@ def main() -> None:
     log(f"Recipe: {rec.display} | model {served} | port {port} | artifacts {outdir}")
 
     warnings: list[str] = []
-    if args.eval_limit > 0 or ":" in args.eval_tasks:
-        warnings.append(f"lm-eval ran with sample limits (default {args.eval_limit}, per task/subtask; "
-                        f"tasks: {args.eval_tasks}); scores are comparative samples, "
-                        "not full-benchmark numbers.")
+    # Warn about sampling only where a cap actually applies. ":" appearing in
+    # --eval-tasks is not evidence of one: "mmlu:0" IS the full run, and
+    # labelling a full run "comparative samples" is worse than saying nothing.
+    _limited = []
+    for _spec in (t.strip() for t in args.eval_tasks.split(",")):
+        if not _spec:
+            continue
+        _task, _sep, _lim = _spec.partition(":")
+        _n = int(_lim) if (_sep and _lim) else args.eval_limit
+        if _n > 0:
+            _limited.append(f"{_task}:{_n}")
+    if _limited:
+        warnings.append(
+            f"lm-eval ran with sample limits ({', '.join(_limited)}"
+            + ("; MMLU's limit is per subtask across 57 subtasks" if any(
+                s.startswith("mmlu:") for s in _limited) else "")
+            + "); those scores are comparative samples, not full-benchmark numbers.")
 
     # Make Ctrl+C / SIGTERM run atexit handlers (stops the workload).
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -1550,6 +1605,7 @@ def main() -> None:
                     log(f"  FAILED bfcl [{code}]: {bfcl_err['reason']}")
         if not args.skip_eval:
             eval_rows = []
+            chat_tasks = []
             specs = [t.strip() for t in args.eval_tasks.split(",") if t.strip()]
             # Probe once, only if a requested task needs loglikelihood scoring.
             ll_ok = True
@@ -1582,7 +1638,11 @@ def main() -> None:
                     log(f"  SKIPPED {task} [{code}]: server down")
                     continue
                 rows, err = run_lm_eval_task(task, base_url, served, tokenizer_id or served,
-                                             limit, args.eval_concurrency, outdir)
+                                             limit, args.eval_concurrency, outdir,
+                                             completions_only=args.eval_completions_only,
+                                             chat_max_gen_toks=args.eval_chat_max_gen_toks)
+                if chat_scored(task, args.eval_completions_only):
+                    chat_tasks.append(task)
                 eval_rows += rows
                 if err:
                     code, detail = diagnose(f"during {task}")
@@ -1591,6 +1651,16 @@ def main() -> None:
                         err["reason"] = f"[{code}] {detail}; {err['reason']}"[:400]
                     eval_failures.append(err)
                     log(f"  FAILED {task} [{code}]: {err['reason']}")
+            if chat_tasks:
+                warnings.append(
+                    f"Generative tasks ({', '.join(chat_tasks)}) were scored over "
+                    f"/v1/chat/completions with the model's chat template applied and a "
+                    f"{args.eval_chat_max_gen_toks}-token generation budget; only "
+                    f"message.content is graded, so a --reasoning-parser server's "
+                    f"thinking is excluded. Multiple-choice tasks stay on "
+                    f"/v1/completions (loglikelihood). Pass --eval-completions-only "
+                    f"for the old raw-text protocol, whose scores are NOT comparable "
+                    f"to these.")
 
         if args.skip_speed:
             ladder_points, reuse_note = load_previous_speed(
