@@ -597,7 +597,7 @@ def build_intelligence_figure(
                 face = FAIL_CELL_COLOR
                 fontsize = cell_fontsize * min(1.0, 4.5 / len(label))
             else:
-                label = f"{value:.3f}"
+                label = f"{value:.4f}"
                 text_color = "black"
                 face = cmap(value)
                 fontsize = cell_fontsize
