@@ -565,8 +565,25 @@ def build_intelligence_figure(
         ax.transData.transform((0, 1))[1] - ax.transData.transform((0, 0))[1]
     )
     cell_pts = cell_px * 72.0 / fig.dpi
+    # aspect="auto" stretches however many rows exist over the full panel, so a
+    # sparse chart (one benchmarked model) gets an 11-inch row and the autosized
+    # text below blows up and overlaps. Cap the row height by shrinking the
+    # axes, keeping the TOP edge anchored, and let the colorbar follow.
+    MAX_CELL_PTS = 36.0
+    if cell_pts > MAX_CELL_PTS:
+        pos = ax.get_position()
+        new_h = pos.height * (MAX_CELL_PTS / cell_pts)
+        ax.set_position([pos.x0, pos.y1 - new_h, pos.width, new_h])
+        cpos = cbar.ax.get_position()
+        cbar.ax.set_position([cpos.x0, pos.y1 - new_h, cpos.width, new_h])
+        fig.canvas.draw()
+        cell_px = abs(
+            ax.transData.transform((0, 1))[1] - ax.transData.transform((0, 0))[1]
+        )
+        cell_pts = cell_px * 72.0 / fig.dpi
     # box height ~= text(1em) + 2 * 0.25em pad = 1.5em; fill ~95% of the cell.
-    cell_fontsize = max(6.0, cell_pts * 0.95 / 1.5)
+    # The ceiling is a backstop so no geometry surprise can overlap neighbours.
+    cell_fontsize = max(6.0, min(28.0, cell_pts * 0.95 / 1.5))
     for i in range(values.shape[0]):
         for j in range(values.shape[1]):
             value = values[i, j]
