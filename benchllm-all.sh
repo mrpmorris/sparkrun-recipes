@@ -150,7 +150,9 @@ for recipe in "${recipes[@]}"; do
   echo "============================================================"
   echo "benchllm-all: >>> $recipe"
   echo "============================================================"
-  if "$BENCHLLM" --recipe "$recipe" --cleanup "$@"; then
+  # --continue-on-fail: a watchdog-killed task must not abort the whole batch;
+  # benchllm records it as a failure row and moves to the next recipe.
+  if "$BENCHLLM" --recipe "$recipe" --cleanup --continue-on-fail "$@"; then
     ok_list+=("$recipe")
   else
     rc=$?

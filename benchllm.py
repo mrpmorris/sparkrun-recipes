@@ -89,6 +89,10 @@ def write_error_report(report_path: Path, display: str, ref: str,
     )
 
 
+# Used only for recipes that declare no gpu_memory_utilization of their own.
+RECIPE_GPU_MEM_FALLBACK = 0.75
+
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Benchmark a sparkrun recipe (speed + intelligence).")
     p.add_argument("--recipe", required=True,
@@ -108,13 +112,22 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--eval-limit", type=int, default=100,
                    help="Samples per lm-eval task without an explicit task:limit, 0 = full run (default 100)")
     p.add_argument("--eval-concurrency", type=int, default=4, help="Concurrent lm-eval requests (default 4)")
-    p.add_argument("--eval-completions-only", action="store_true",
-                   help="Score generative tasks (gsm8k/humaneval/mbpp) as raw text completions on "
-                        "/v1/completions instead of chat. Default is chat: an instruct/reasoning "
-                        "model scored as raw completions answers in the wrong shape and "
-                        "under-scores badly (Qwen3.8-27B: gsm8k 66 vs a published 92). "
-                        "Multiple-choice tasks always use /v1/completions (loglikelihood is not "
-                        "available on the chat endpoint).")
+    p.add_argument("--continue-on-fail", action="store_true",
+                   help="When an eval task is killed by the watchdog (10min stall / 4h hard cap), "
+                        "record the failure and move on instead of aborting the whole run. "
+                        "benchllm-all.sh passes this so overnight batches survive a wedged task; "
+                        "manual runs abort by default so a hang is investigated, not papered over. "
+                        "Ordinary task failures (non-zero exit, HTTP errors) always record and "
+                        "continue - a failure is a result, a kill is a hang.")
+    p.add_argument("--eval-chat", action="store_true",
+                   help="EXPERIMENTAL: score generative tasks (gsm8k/humaneval/mbpp) over "
+                        "/v1/chat/completions with the chat template applied. Do NOT use for "
+                        "comparable numbers: lm-eval's code tasks grade by executing "
+                        "prompt+generation, and a chat answer (prose + markdown fences) is not a "
+                        "valid code continuation - measured 2026-08-20 on Qwen3.8-27B-FP8: "
+                        "humaneval 0.79->0.00, mbpp 0.42->0.03, gsm8k unchanged. Default is "
+                        "completions, which is the protocol these lm-eval tasks are designed for. "
+                        "Multiple-choice tasks always use /v1/completions (loglikelihood).")
     p.add_argument("--eval-chat-max-gen-toks", type=int, default=2048,
                    help="Generation budget per chat-scored task (default 2048). A reasoning model "
                         "spends most of this thinking; lm-eval's 256-token default truncates the "
@@ -150,9 +163,13 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--skip-run", action="store_true",
                    help="Don't launch or stop the model; benchmark an instance you started yourself "
                         "(e.g. with `sparkrun run <recipe> -o speculative_config=''`)")
-    p.add_argument("--gpu-mem", type=float, default=0.75,
-                   help="GPU memory fraction passed to sparkrun run --gpu-mem (default 0.75; "
-                        "keeps headroom for eval harnesses and diffusion activation buffers)")
+    p.add_argument("--gpu-mem", type=float, default=None,
+                   help=f"GPU memory fraction passed to sparkrun run --gpu-mem. Default: use the "
+                        f"recipe's own gpu_memory_utilization when it declares one, else "
+                        f"{RECIPE_GPU_MEM_FALLBACK} (headroom for eval harnesses and diffusion "
+                        f"activation buffers). Set explicitly to override the recipe - but note a "
+                        f"recipe tuned for 0.85 can be unlaunchable at 0.75 (KV cache goes "
+                        f"negative), and one tuned for 0.6 can crash the box at 0.75.")
     return p.parse_args()
 
 
@@ -252,7 +269,7 @@ class Workload:
     """Starts the recipe with sparkrun and guarantees it is stopped on exit."""
 
     def __init__(self, sparkrun: str, recipe: Recipe, log_path: Path,
-                 gpu_mem: float = 0.75):
+                 gpu_mem: float | None = None):
         self.sparkrun = sparkrun
         self.recipe = recipe
         self.log_path = log_path
@@ -267,8 +284,10 @@ class Workload:
         # than going silent after "Launching workload".
         # Always run with a fixed GPU memory fraction so the eval harnesses
         # keep enough unified memory to survive (avoids earlyoom).
-        run_cmd = [self.sparkrun, "run", self.recipe.ref, "--ensure", "--no-follow",
-                   "--gpu-mem", str(self.gpu_mem)]
+        run_cmd = [self.sparkrun, "run", self.recipe.ref, "--ensure", "--no-follow"]
+        # None = the recipe states its own gpu_memory_utilization; leave it alone.
+        if self.gpu_mem is not None:
+            run_cmd += ["--gpu-mem", str(self.gpu_mem)]
         log(f"Launching workload: {' '.join(run_cmd[1:])}")
         deadline = time.monotonic() + timeout
         last_note = 0.0
@@ -454,6 +473,21 @@ FATAL_SERVE_PHRASES = (
 )
 
 
+def serve_container_name(names: list) -> str | None:
+    """Pick the container whose /tmp/sparkrun_serve.log carries the serve output.
+
+    sparkrun names a single-node workload `*_solo` and a distributed one
+    `*_node_N`. For a distributed job the DP group leader (node_0) is the rank
+    that logs engine init and the fatal error, so it is preferred; any node is
+    better than nothing.
+    """
+    for suffix in ("_node_0", "_solo"):
+        hit = next((n for n in names if n.endswith(suffix)), None)
+        if hit:
+            return hit
+    return next((n for n in names if "_node_" in n), None)
+
+
 def read_serve_log(max_bytes: int = 20000) -> str:
     """Best-effort tail of the running solo container's serve log."""
     try:
@@ -463,7 +497,7 @@ def read_serve_log(max_bytes: int = 20000) -> str:
         ).stdout.split()
     except Exception:  # noqa: BLE001
         return ""
-    solo = next((n for n in names if n.endswith("_solo")), None)
+    solo = serve_container_name(names)
     if not solo:
         return ""
     try:
@@ -493,7 +527,7 @@ def serve_pid_alive():
         ).stdout.split()
     except Exception:  # noqa: BLE001
         return None
-    solo = next((n for n in names if n.endswith("_solo")), None)
+    solo = serve_container_name(names)
     if not solo:
         return None
     try:
@@ -1072,26 +1106,27 @@ def stream_process(cmd, log_path, env=None, stall_s=None, hard_cap_s=None, poll_
     return proc.returncode, None
 
 
-def chat_scored(task: str, completions_only: bool) -> bool:
+def chat_scored(task: str, chat: bool) -> bool:
     """Should this task be scored over /v1/chat/completions?
 
-    Multiple-choice tasks never can: they need echo+logprobs, and lm-eval's
-    LocalChatCompletion.loglikelihood raises NotImplementedError. Everything
-    else is generative and belongs on the chat endpoint, because that is the
-    protocol an instruct/reasoning model was tuned for and the one published
-    numbers are produced with.
+    Only if --eval-chat asked for it, and never for multiple-choice tasks: they
+    need echo+logprobs, and lm-eval's LocalChatCompletion.loglikelihood raises
+    NotImplementedError. Chat scoring is experimental - lm-eval's generative
+    tasks (esp. humaneval/mbpp, which execute prompt+generation) are designed
+    for raw completions, and chat answers break their scoring (see --eval-chat
+    help for measured damage).
     """
-    return not completions_only and task not in LOGLIKELIHOOD_TASKS
+    return chat and task not in LOGLIKELIHOOD_TASKS
 
 
 def run_lm_eval_task(task: str, base_url: str, model: str, tokenizer: str, limit: int,
-                     concurrency: int, outdir: Path, completions_only: bool = False,
+                     concurrency: int, outdir: Path, use_chat: bool = False,
                      chat_max_gen_toks: int = 2048) -> tuple[list[dict], str | None]:
     """Run one lm-eval task. Returns (metric rows, error string or None)."""
     ensure_lm_eval_stop_patch()
     eval_dir = outdir / f"lm-eval-{task}"
     eval_dir.mkdir(parents=True, exist_ok=True)
-    chat = chat_scored(task, completions_only)
+    chat = chat_scored(task, use_chat)
     # Chat scoring sends the task's prompt through the model's chat template and
     # reads choices[].message.content, so a `--reasoning-parser` server keeps its
     # thinking in reasoning_content and only the answer is graded. Fewshot
@@ -1142,7 +1177,9 @@ def run_lm_eval_task(task: str, base_url: str, model: str, tokenizer: str, limit
                                    stall_s=STALL_S, hard_cap_s=HARD_CAP_S, poll_s=POLL_S)
     if wd_reason:
         log(f"lm-eval: {task} watchdog: {wd_reason}; killed")
-        return [], failure(task, log_path, f"killed by watchdog ({wd_reason})")
+        rec = failure(task, log_path, f"killed by watchdog ({wd_reason})")
+        rec["killed"] = True
+        return [], rec
     if rc != 0:
         return [], failure(task, log_path, f"exit code {rc}")
 
@@ -1485,7 +1522,15 @@ def main() -> None:
     tokenizer_id = _md.get("tokenizer") or model_id.split(":", 1)[0]
     port = int(defaults.get("port", 8000))
     max_model_len = defaults.get("max_model_len")
-    max_model_len = int(max_model_len) if max_model_len else None
+    # Recipes may set a non-numeric value (e.g. "auto", which vLLM accepts on
+    # --max-model-len). Treat anything non-integer as unset: the server probe
+    # after startup backfills the real context window from /v1/models.
+    try:
+        max_model_len = int(max_model_len) if max_model_len else None
+    except (TypeError, ValueError):
+        log(f"Recipe max_model_len={max_model_len!r} is not a number; "
+            f"will use the server-reported value after startup.")
+        max_model_len = None
     base_url = f"http://127.0.0.1:{port}/v1"
 
     ts = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -1528,7 +1573,19 @@ def main() -> None:
                 "models downloaded for this run will be deleted at exit.")
             atexit.register(cleanup_downloaded_models, preexisting_models)
 
-    workload = Workload(sparkrun, rec, outdir / "sparkrun.log", gpu_mem=args.gpu_mem)
+    gpu_mem = args.gpu_mem
+    if gpu_mem is None:
+        if defaults.get("gpu_memory_utilization") is not None:
+            log(f"recipe declares gpu_memory_utilization="
+                f"{defaults['gpu_memory_utilization']!r}; not overriding it "
+                f"(pass --gpu-mem to force a different fraction).")
+        else:
+            gpu_mem = RECIPE_GPU_MEM_FALLBACK
+            log(f"recipe declares no gpu_memory_utilization; using "
+                f"--gpu-mem {gpu_mem}.")
+    else:
+        log(f"--gpu-mem {gpu_mem} given; overriding any recipe value.")
+    workload = Workload(sparkrun, rec, outdir / "sparkrun.log", gpu_mem=gpu_mem)
     follow_dest = outdir / "serve-follow.log"
     # Shared state for the per-step server lifecycle (ensure_up / classify_death):
     # last_alive anchors the syslog OOM scan; restarts is a running start counter.
@@ -1639,9 +1696,9 @@ def main() -> None:
                     continue
                 rows, err = run_lm_eval_task(task, base_url, served, tokenizer_id or served,
                                              limit, args.eval_concurrency, outdir,
-                                             completions_only=args.eval_completions_only,
+                                             use_chat=args.eval_chat,
                                              chat_max_gen_toks=args.eval_chat_max_gen_toks)
-                if chat_scored(task, args.eval_completions_only):
+                if chat_scored(task, args.eval_chat):
                     chat_tasks.append(task)
                 eval_rows += rows
                 if err:
@@ -1651,16 +1708,21 @@ def main() -> None:
                         err["reason"] = f"[{code}] {detail}; {err['reason']}"[:400]
                     eval_failures.append(err)
                     log(f"  FAILED {task} [{code}]: {err['reason']}")
+                    if err.get("killed") and not args.continue_on_fail:
+                        log(f"lm-eval: {task} was killed by the watchdog; "
+                            f"aborting run (pass --continue-on-fail to record "
+                            f"and keep going). No report is written, so this "
+                            f"recipe re-runs without --force.")
+                        sys.exit(3)
             if chat_tasks:
                 warnings.append(
                     f"Generative tasks ({', '.join(chat_tasks)}) were scored over "
                     f"/v1/chat/completions with the model's chat template applied and a "
                     f"{args.eval_chat_max_gen_toks}-token generation budget; only "
                     f"message.content is graded, so a --reasoning-parser server's "
-                    f"thinking is excluded. Multiple-choice tasks stay on "
-                    f"/v1/completions (loglikelihood). Pass --eval-completions-only "
-                    f"for the old raw-text protocol, whose scores are NOT comparable "
-                    f"to these.")
+                    f"thinking is excluded. EXPERIMENTAL (--eval-chat): these "
+                    f"scores are NOT comparable to completions-scored runs, and "
+                    f"humaneval/mbpp are structurally broken under chat scoring.")
 
         if args.skip_speed:
             ladder_points, reuse_note = load_previous_speed(
