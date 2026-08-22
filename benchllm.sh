@@ -71,6 +71,6 @@ if [[ "$SKIP_BFCL" == "0" ]]; then
   export BENCHLLM_BFCL_PYTHON="$VENV_BFCL/bin/python"
 fi
 
-# The comparison PDF is no longer generated here; run ./generate-comparison.sh
+# The comparison PDF is no longer generated here; run ./generate-report.sh
 # to build benchmarks/_Comparison.pdf on demand.
 exec "$VENV/bin/python" "$SCRIPT_DIR/benchllm.py" "$@"

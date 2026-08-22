@@ -43,6 +43,14 @@ INTEL_METRICS = [
 # of INTEL_METRICS so it does not shift the lm-eval Mean used for row ordering.
 TOOL_METRIC = "BFCL overall"
 
+# BFCL v4 scores 22 categories (23 exist; format_sensitivity is excluded from
+# bfcl-eval's ALL_SCORING_CATEGORIES). OVERALL is their unweighted mean, so a
+# partial run drags it down by counting absent categories as 0 - the column
+# header therefore states coverage rather than implying a leaderboard number.
+BFCL_SCORING_TOTAL = 22
+# Rows in the report's Tool calling table that are aggregates, not categories.
+BFCL_ROLLUP_ROWS = {"OVERALL", "NON_LIVE", "LIVE", "HALLUCINATION", "ACC"}
+
 # lm-eval task name -> the heat-map columns it feeds, for mapping the report's
 # "Failed benchmarks" codes onto cells.
 TASK_METRICS = {
@@ -247,6 +255,49 @@ def parse_tool_call_overall(text: str) -> float | None:
             return parse_float(cols[1])
 
     return None
+
+
+def parse_tool_call_coverage(text: str) -> int | None:
+    """How many BFCL categories actually ran, from the report's Tool calling table.
+
+    Counts data rows that are not aggregates and not the `<model>@bfcl_v4`
+    header row. Returns None when the section has no category rows at all.
+    """
+    in_section = False
+    seen = set()
+
+    for line in text.splitlines():
+        if line.startswith("## Tool calling"):
+            in_section = True
+            continue
+        if in_section and line.startswith("## "):
+            break
+        if not in_section or not line.strip().startswith("|"):
+            continue
+
+        cols = split_md_row(line)
+        if len(cols) < 2:
+            continue
+        name = cols[0].strip().strip("*")
+        if not name or name in ("Subset / Category", "---"):
+            continue
+        if name.upper() in BFCL_ROLLUP_ROWS or "@" in name:
+            continue
+        if parse_float(cols[1]) is None:
+            continue
+        seen.add(name)
+
+    return len(seen) or None
+
+
+def tool_metric_label(coverage: list) -> str:
+    """Column header stating BFCL coverage, e.g. "BFCL 7 of 22"."""
+    vals = sorted({c for c in coverage if c})
+    if not vals:
+        return f"BFCL 0 of {BFCL_SCORING_TOTAL}"
+    if len(vals) == 1:
+        return f"BFCL {vals[0]} of {BFCL_SCORING_TOTAL}"
+    return f"BFCL {vals[0]}-{vals[-1]} of {BFCL_SCORING_TOTAL}"
 
 
 def report_failed(text: str) -> bool:
@@ -461,6 +512,7 @@ def build_intelligence_figure(
     codes_df: pd.DataFrame,
     cmap: LinearSegmentedColormap,
     color_map: dict[str, str],
+    tool_metric: str = TOOL_METRIC,
 ) -> plt.Figure:
     # Failures still count as 0 for the Mean and the rankings; NaN survives
     # only into the heat-map cells, where it is drawn grey with its code.
@@ -469,7 +521,7 @@ def build_intelligence_figure(
     df = df.sort_values("Mean", ascending=False)
 
     table_rows = []
-    for test in INTEL_METRICS + [TOOL_METRIC]:
+    for test in INTEL_METRICS + [tool_metric]:
         ranked = df.sort_values([test, "Mean"], ascending=False)
         top5 = ranked.head(5).index.tolist()
         while len(top5) < 5:
@@ -502,7 +554,7 @@ def build_intelligence_figure(
     for col in ["1st", "2nd", "3rd", "4th", "5th"]:
         wrapped_table[col] = wrapped_table[col].apply(lambda x: wrap_text(x, 21))
 
-    plot_cols = INTEL_METRICS + [TOOL_METRIC, "Mean"]
+    plot_cols = INTEL_METRICS + [tool_metric, "Mean"]
     # NaN scores (test failed / never ran) drawn as grey cells; the Mean column
     # is always numeric.
     plot_df = intel_df.reindex(index=df.index)
@@ -850,6 +902,7 @@ def build_dataframes(
     code_rows = []
     speed_rows = []
     concurrency_rows = []
+    tool_coverage: list = []
 
     for filename, text in reports:
         benchmark = label_from_filename(filename)
@@ -858,6 +911,7 @@ def build_dataframes(
         tool_overall = parse_tool_call_overall(text)
         if tool_overall is not None:
             scores[TOOL_METRIC] = tool_overall
+        tool_coverage.append(parse_tool_call_coverage(text))
         scores["benchmark"] = benchmark
         intel_rows.append(scores)
 
@@ -920,6 +974,15 @@ def main() -> None:
         raise RuntimeError("No markdown benchmark reports found")
 
     intel_df, codes_df, speed_df, concurrency_df = build_dataframes(reports)
+
+    # Retitle the BFCL column with its coverage. PURPOSES/TASK_METRICS are keyed
+    # by TOOL_METRIC, so register the new name rather than rewriting them.
+    tool_coverage = [parse_tool_call_coverage(text) for _, text in reports]
+    tool_label = tool_metric_label(tool_coverage)
+    if tool_label != TOOL_METRIC:
+        PURPOSES[tool_label] = PURPOSES.get(TOOL_METRIC, "")
+        intel_df = intel_df.rename(columns={TOOL_METRIC: tool_label})
+        codes_df = codes_df.rename(columns={TOOL_METRIC: tool_label})
     cmap = make_score_cmap(args.gradient)
 
     names = set()
@@ -930,7 +993,7 @@ def main() -> None:
     color_map = build_color_map(sorted(names))
 
     with PdfPages(args.output) as pdf:
-        fig = build_intelligence_figure(intel_df, codes_df, cmap, color_map)
+        fig = build_intelligence_figure(intel_df, codes_df, cmap, color_map, tool_label)
         pdf.savefig(fig, bbox_inches="tight")
         plt.close(fig)
 

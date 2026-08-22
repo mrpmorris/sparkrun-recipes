@@ -93,6 +93,33 @@ def write_error_report(report_path: Path, display: str, ref: str,
 RECIPE_GPU_MEM_FALLBACK = 0.75
 
 
+# BFCL v4 has 23 categories; 22 are scored (format_sensitivity is excluded from
+# ALL_SCORING_CATEGORIES upstream). EvalScope's OVERALL is the unweighted mean
+# over all of them, so every category not run silently counts as 0 - which is
+# why the 7-subset "quick" preset reports OVERALL ~0.27 for every model.
+BFCL_SCORING_TOTAL = 22
+BFCL_SUBSET_PRESETS = {
+    # Historic default: fast, no keys, but OVERALL is not interpretable.
+    "quick": ("simple_python,multiple,parallel,parallel_multiple,live_simple,live_multiple,irrelevance"),
+    # Every scoring category that needs no API key or embedding backend,
+    # including the 4 multi_turn ones (slow, stateful, and where models
+    # actually differ).
+    "all-local": ("simple_python,simple_java,simple_javascript,multiple,parallel,parallel_multiple,irrelevance,live_simple,live_multiple,live_parallel,live_parallel_multiple,live_irrelevance,live_relevance,multi_turn_base,multi_turn_miss_func,multi_turn_miss_param,multi_turn_long_context"),
+    # Everything scored. The 5 agentic categories (memory_*, web_search_*)
+    # need SERPAPI_API_KEY and an embedding backend; without them they fail
+    # or score 0, which is the same trap as running a subset.
+    "all": ("simple_python,simple_java,simple_javascript,multiple,parallel,parallel_multiple,irrelevance,live_simple,live_multiple,live_parallel,live_parallel_multiple,live_irrelevance,live_relevance,multi_turn_base,multi_turn_miss_func,multi_turn_miss_param,multi_turn_long_context,memory_kv,memory_vector,memory_rec_sum,web_search_base,web_search_no_snippet"),
+}
+
+
+def resolve_bfcl_subsets(value: str) -> list:
+    """Expand a preset name, or parse an explicit comma-separated list."""
+    key = value.strip()
+    if key in BFCL_SUBSET_PRESETS:
+        value = BFCL_SUBSET_PRESETS[key]
+    return [s.strip() for s in value.split(",") if s.strip()]
+
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Benchmark a sparkrun recipe (speed + intelligence).")
     p.add_argument("--recipe", required=True,
@@ -135,9 +162,13 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--skip-bfcl", action="store_true",
                    help="Skip the BFCL v4 tool-calling benchmark (runs by default, via EvalScope, against "
                         "the recipe's tools API; needs the .benchllm-bfcl-venv that benchllm.sh builds).")
-    p.add_argument("--bfcl-subsets",
-                   default="simple_python,multiple,parallel,parallel_multiple,live_simple,live_multiple,irrelevance",
-                   help="Comma-separated BFCL v4 subsets to run (default: non-live + live-simple, no API keys needed)")
+    p.add_argument("--bfcl-subsets", default="quick",
+                   help="BFCL v4 categories: a preset (quick | all-local | all) or an explicit "
+                        "comma-separated list. quick = 7 categories, no keys, fast - but the "
+                        "OVERALL row is then meaningless (it averages over all 22 scoring "
+                        "categories, counting the missing ones as 0). all-local = the 17 "
+                        "key-free categories incl. multi_turn. all = 22, needs SERPAPI_API_KEY "
+                        "and an embedding backend for the 5 agentic ones. (default: quick)")
     p.add_argument("--bfcl-limit", type=int, default=25,
                    help="Samples per BFCL subset, 0 = full (default 25)")
     p.add_argument("--ready-timeout", type=int, default=3600, help="Seconds to wait for the model endpoint (default 3600)")
@@ -1000,7 +1031,7 @@ _STOP_PATCH_DONE = False
 def ensure_lm_eval_stop_patch() -> None:
     """Re-assert the lm-eval stop[:4] patch once per process.
 
-    benchllm.sh applies it after building the venv, but generate-comparison.sh
+    benchllm.sh applies it after building the venv, but generate-report.sh
     shares that venv and rebuilds it on a deps-hash change, which would wipe
     the patch and silently cost every humaneval request an HTTP 400.
     """
@@ -1642,7 +1673,7 @@ def main() -> None:
 
     try:
         if not args.skip_bfcl:
-            subsets = [s.strip() for s in args.bfcl_subsets.split(",") if s.strip()]
+            subsets = resolve_bfcl_subsets(args.bfcl_subsets)
             # Ensure the server is up before the step; if it can't be, record it.
             status, code, detail = ensure("before bfcl")
             if status == "down":
@@ -1652,6 +1683,16 @@ def main() -> None:
                     "description": TASK_DESCRIPTIONS.get("bfcl", "")})
                 log(f"  SKIPPED bfcl [{code}]: server down")
             else:
+                if len(subsets) < BFCL_SCORING_TOTAL:
+                    missing = BFCL_SCORING_TOTAL - len(subsets)
+                    warnings.append(
+                        f"BFCL ran {len(subsets)} of {BFCL_SCORING_TOTAL} scoring categories "
+                        f"(--bfcl-subsets {args.bfcl_subsets}). The OVERALL row is an "
+                        f"unweighted mean across all {BFCL_SCORING_TOTAL}, so the {missing} "
+                        f"that did not run count as 0 and drag it down: IGNORE OVERALL at "
+                        f"partial coverage and read acc instead. Published leaderboard "
+                        f"figures (~0.73-0.77 for frontier models) are full-coverage OVERALL "
+                        f"and are not comparable to either number here.")
                 bfcl_rows, bfcl_err = run_bfcl(base_url, served, subsets, args.bfcl_limit, outdir)
                 if bfcl_err:
                     code, detail = diagnose("bfcl")
