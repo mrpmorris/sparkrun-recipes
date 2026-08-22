@@ -162,13 +162,15 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--skip-bfcl", action="store_true",
                    help="Skip the BFCL v4 tool-calling benchmark (runs by default, via EvalScope, against "
                         "the recipe's tools API; needs the .benchllm-bfcl-venv that benchllm.sh builds).")
-    p.add_argument("--bfcl-subsets", default="quick",
-                   help="BFCL v4 categories: a preset (quick | all-local | all) or an explicit "
-                        "comma-separated list. quick = 7 categories, no keys, fast - but the "
-                        "OVERALL row is then meaningless (it averages over all 22 scoring "
-                        "categories, counting the missing ones as 0). all-local = the 17 "
-                        "key-free categories incl. multi_turn. all = 22, needs SERPAPI_API_KEY "
-                        "and an embedding backend for the 5 agentic ones. (default: quick)")
+    p.add_argument("--bfcl-subsets", default="all-local",
+                   help="BFCL v4 categories: a preset (all-local | all | quick) or an explicit "
+                        "comma-separated list. all-local (default) = the 17 of 22 scoring "
+                        "categories that need no API key, including the four multi_turn_* ones "
+                        "where models actually differ; adds roughly 25-30 min per model over "
+                        "quick. all = 22, but the 5 agentic categories need SERPAPI_API_KEY and "
+                        "an embedding backend - without them they score 0 and drag OVERALL down. "
+                        "quick = the fast 7-category set (~5 min), too narrow for OVERALL to "
+                        "mean much. (default: all-local)")
     p.add_argument("--bfcl-limit", type=int, default=25,
                    help="Samples per BFCL subset, 0 = full (default 25)")
     p.add_argument("--ready-timeout", type=int, default=3600, help="Seconds to wait for the model endpoint (default 3600)")
