@@ -1298,6 +1298,49 @@ def _collect_bfcl_scores(node, out: list, overall_names=("bfcl_v4", "averageaccu
             _collect_bfcl_scores(v, out, overall_names)
 
 
+# Aggregate rows EvalScope emits alongside the real categories. Everything else
+# in the report that is not one of these (and not the "<model>@bfcl_v4" header)
+# is a category that actually ran.
+BFCL_ROLLUP_NAMES = {"OVERALL", "OVERALL_RAW", "NON_LIVE", "LIVE", "MULTI_TURN",
+                     "HALLUCINATION", "AGENTIC", "WEB_SEARCH", "MEMORY",
+                     "SINGLE_TURN", "PYTHON", "NON_PYTHON", "ACC"}
+
+
+def adjust_bfcl_overall(rows: list, subsets: list) -> list:
+    """Rescale OVERALL to cover only the categories that ran.
+
+    EvalScope computes OVERALL across BFCL's full category set, so every
+    category not requested counts as 0 - at the 7-category default that pinned
+    OVERALL near 0.27 for every model, wholly determined by coverage rather
+    than by the model. Replace it with the unweighted mean of the categories
+    that did run (equal to acc when every category got the same sample limit,
+    and a fairer macro average when they did not), and preserve the original
+    as OVERALL_RAW.
+
+    A full-coverage run needs no adjustment, and none is applied.
+    """
+    ran = [r for r in rows
+           if r["name"].upper() not in BFCL_ROLLUP_NAMES
+           and "@" not in r["name"]
+           and isinstance(r.get("score"), (int, float))]
+    overall = next((r for r in rows if r["name"].upper() == "OVERALL"), None)
+    if overall is None or not ran:
+        return rows
+
+    adjusted = sum(r["score"] for r in ran) / len(ran)
+    raw = overall["score"]
+    if abs(adjusted - raw) < 1e-9:
+        return rows
+
+    log(f"BFCL: OVERALL {raw:.4f} -> {adjusted:.4f} "
+        f"(rescaled over the {len(ran)} categories that ran; the raw value "
+        f"averages in the categories that did not, scoring them 0)")
+    overall["score"] = adjusted
+    rows.append({"name": "OVERALL_RAW", "score": raw, "n": overall.get("n"),
+                 "overall": False})
+    return rows
+
+
 def run_bfcl(base_url: str, model: str, subsets: list, limit: int,
              outdir: Path) -> tuple[list[dict], str | None]:
     """Run BFCL v4 tool-calling eval through EvalScope. Returns (score rows, error or None)."""
@@ -1337,6 +1380,7 @@ def run_bfcl(base_url: str, model: str, subsets: list, limit: int,
             continue
         seen.add(c["name"])
         rows.append(c)
+    rows = adjust_bfcl_overall(rows, subsets)
     # Overall first, then the rest in the order they appeared.
     rows.sort(key=lambda r: (not r["overall"]))
     return rows, None
@@ -1487,7 +1531,11 @@ def write_report(report_path: Path, ctx: dict) -> None:
     elif ctx.get("bfcl_rows"):
         lines += ["Berkeley Function Calling Leaderboard v4 — exercises the recipe's real tool-calling "
                   "path (OpenAI `tools` API + the recipe's tool_call_parser / auto-tool-choice). "
-                  "Score is accuracy (0-1); OVERALL is BFCL's weighted aggregate.", "",
+                  "Score is accuracy (0-1). OVERALL is rescaled to cover only the categories "
+                  "that ran, so partial coverage does not depress it; OVERALL_RAW is BFCL's "
+                  "own full-suite aggregate, which scores every category that did not run as "
+                  "0. Neither is comparable to published BFCL figures unless all "
+                  f"{BFCL_SCORING_TOTAL} scoring categories ran.", "",
                   "| Subset / Category | Score | Samples |",
                   "| --- | --- | --- |"]
         for r in ctx["bfcl_rows"]:

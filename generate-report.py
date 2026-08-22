@@ -49,7 +49,12 @@ TOOL_METRIC = "BFCL overall"
 # header therefore states coverage rather than implying a leaderboard number.
 BFCL_SCORING_TOTAL = 22
 # Rows in the report's Tool calling table that are aggregates, not categories.
-BFCL_ROLLUP_ROWS = {"OVERALL", "NON_LIVE", "LIVE", "HALLUCINATION", "ACC"}
+# bfcl-eval names real categories in lower_snake_case (simple_python,
+# multi_turn_base, ...) and rollups in UPPERCASE (OVERALL, NON_LIVE, LIVE,
+# HALLUCINATION, MULTI_TURN, ...), so detect by case rather than by an explicit
+# list that has to be extended every time a new rollup appears - MULTI_TURN only
+# shows up once a multi_turn_* category runs, and it inflated the count to 18.
+BFCL_ROLLUP_ROWS = {"ACC"}
 
 # lm-eval task name -> the heat-map columns it feeds, for mapping the report's
 # "Failed benchmarks" codes onto cells.
@@ -281,7 +286,10 @@ def parse_tool_call_coverage(text: str) -> int | None:
         name = cols[0].strip().strip("*")
         if not name or name in ("Subset / Category", "---"):
             continue
+        # UPPERCASE = rollup aggregate; "@" = the model header row.
         if name.upper() in BFCL_ROLLUP_ROWS or "@" in name:
+            continue
+        if name.upper() == name and name.lower() != name:
             continue
         if parse_float(cols[1]) is None:
             continue
@@ -291,13 +299,16 @@ def parse_tool_call_coverage(text: str) -> int | None:
 
 
 def tool_metric_label(coverage: list) -> str:
-    """Column header stating BFCL coverage, e.g. "BFCL 7 of 22"."""
-    vals = sorted({c for c in coverage if c})
+    """Column header stating BFCL coverage, e.g. "BFCL 17 of 22".
+
+    Always a single quantity. When reports disagree (some run more categories
+    than others) the highest coverage present is shown; mixed coverage is
+    called out separately in the figure note rather than in the header.
+    """
+    vals = [c for c in coverage if c]
     if not vals:
         return f"BFCL 0 of {BFCL_SCORING_TOTAL}"
-    if len(vals) == 1:
-        return f"BFCL {vals[0]} of {BFCL_SCORING_TOTAL}"
-    return f"BFCL {vals[0]}-{vals[-1]} of {BFCL_SCORING_TOTAL}"
+    return f"BFCL {max(vals)} of {BFCL_SCORING_TOTAL}"
 
 
 def report_failed(text: str) -> bool:
