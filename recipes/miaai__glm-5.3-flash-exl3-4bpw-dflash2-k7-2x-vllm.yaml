@@ -1,0 +1,172 @@
+# Reference: https://github.com/MiaAI-Lab/GLM-5.3-Flash-EXL3-2x-DGX-Sparks
+# GHCR image is older than current upstream: pre_exec installs the pinned overlay
+# and caches the pinned ExLlamaV3 E2 wheel. No external launcher scripts.
+# Run from this directory: sparkrun run miaai__glm-5.3-flash-exl3-4bpw-dflash2-k7-2x-vllm.yaml --cluster pair --no-follow
+# Existing pair cluster = sparky1.local + sparky2.local, with CX7 and shared /srv/hf.
+# Explicit draft revision avoids sparkrun 0.3.6 inheriting the target revision.
+recipe_version: '2'
+model: Mia-AiLab/GLM-5.3-Flash-EXL3-TR3-4bpw
+model_revision: 25a44fdbf16862a46b7cc9921142c6c81350af2f
+runtime: vllm
+container: ghcr.io/miaai-lab/glm-5.3-flash-2x-dgx-sparks@sha256:9bb1557a4234fce63d59599e44d10747eabd742beb337eebf9e7070be8a0fd58
+min_nodes: 2
+max_nodes: 2
+cluster_only: true
+metadata:
+  description: GLM-5.3-Flash EXL3/TR3 4bpw, DFlash2 k=7 TP2, stock weights, reasoning and tools; sparky1 + sparky2.
+  image_source_revision: public image 2026-08-28; recipe pre_exec upgrades overlay to 3021f24c88a0904c768c46ff22a508407e31360a
+    and builds pinned ExLlamaV3 E2 wheel
+  model_vram: 164.0
+  kv_dtype: fp8_ds_mla
+  # Measured: the engine asks for 14.52 GiB of KV at max_model_len=1000000
+  # (hybrid MLA + Mamba + sliding-window groups, not MLA alone). The old
+  # 7.33e-06 was half the real cost, so sparkrun reported 3.2x spare
+  # context for a pair that could not fit 1x.
+  kv_vram_per_token: 1.4520e-05
+  kv_lora_rank: 512
+  maintainer: pmorris
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  served_model_name: GLM-5.3-Flash-EXL3
+  revision: 25a44fdbf16862a46b7cc9921142c6c81350af2f
+  tensor_parallel: 2
+  pipeline_parallel: 1
+  distributed_executor_backend: mp
+  # 0.87 reserved 105.9 of 121.7 GiB unified memory, which left host
+  # MemAvailable at ~2% and got vllm SIGTERMed by earlyoom during the API
+  # server's warmup - killing the server mid-benchmark, and killing every
+  # restart the same way.
+  # Measured on this pair: 86.4 GiB non-KV (81.0 weights + 5.4 peak
+  # activation) plus 14.5 GiB of KV for the full 1M context = 100.9 GiB, so
+  # 0.85 (103.4 GiB) keeps max_model_len and attention identical with KV to
+  # spare and hands ~2.5 GiB back to the host. Do not go below 0.83: the
+  # engine then refuses to start (11.1 GiB KV < the 14.5 GiB 1M needs).
+  gpu_memory_utilization: 0.85
+  max_model_len: 1000000
+  max_num_seqs: 4
+  max_num_batched_tokens: 7168
+  quantization: exl3
+  load_format: auto
+  kv_cache_dtype: fp8
+  speculative_config: '{"method":"dflash","model":"incoai/GLM-5.3-Flash-DFlash2","num_speculative_tokens":7,"kv_cache_dtype":"auto","draft_tensor_parallel_size":2,"draft_sample_method":"probabilistic","rejection_sample_method":"standard","revision":"bf582e4eacc1810f76656d1811693ff6c6737d2a"}'
+  local_speculative_config: '{"method":"dflash","model":"/cache/huggingface/hub/models--incoai--GLM-5.3-Flash-DFlash2/snapshots/bf582e4eacc1810f76656d1811693ff6c6737d2a","num_speculative_tokens":7,"kv_cache_dtype":"auto","draft_tensor_parallel_size":2,"draft_sample_method":"probabilistic","rejection_sample_method":"standard","revision":"bf582e4eacc1810f76656d1811693ff6c6737d2a"}'
+env:
+  EXL3_FUSED_MOE: '1'
+  EXL3_MOE_ROW_TILE: '0'
+  EXL3_TEMP_ROWS_FUSED: '128'
+  FLASHINFER_CUDA_ARCH_LIST: 12.1a
+  FLASHINFER_DISABLE_VERSION_CHECK: '1'
+  GLM53_MIXED_PREFILL_CHUNK: skip
+  GLM53_SUPPRESS_STOPS_IN_REASONING: '1'
+  NCCL_IGNORE_CPU_AFFINITY: "1"
+  NCCL_IB_DISABLE: "0"
+  NCCL_IB_ROCE_VERSION_NUM: "2"
+  NCCL_NET: IB
+  NCCL_CROSS_NIC: '0'
+  NCCL_CUMEM_ENABLE: '0'
+  NCCL_IB_MERGE_NICS: '0'
+  NCCL_NET_PLUGIN: none
+  NCCL_NVLS_ENABLE: '0'
+  PYTORCH_CUDA_ALLOC_CONF: expandable_segments:True
+  TORCH_CUDA_ARCH_LIST: 12.1a
+  VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS: '1800'
+  VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS: '1'
+  VLLM_NO_USAGE_STATS: '1'
+  DO_NOT_TRACK: '1'
+  EXL3_FAT_SORTED: '0'
+  EXL3_FAT_BATCHED: '0'
+  EXL3_FAT_KERNEL: '1'
+  # Stock scratch reservation left only 12.6 GiB KV on this pair.
+  # Upstream rightsize retains 1M context and identical target attention.
+  GLM53_INDEXER_WORKSPACE: rightsize
+  GLM53_SPINWAIT_MS: stock
+  ABLIT: '0'
+  TRITON_CACHE_DIR: /cache/runtime/triton
+  TILELANG_CACHE_DIR: /cache/runtime/tilelang
+  VLLM_ENGINE_READY_TIMEOUT_S: '3600'
+  NCCL_DEBUG: INFO
+executor_config:
+  entrypoint: ''
+  user: root
+  shm_size: 32gb
+  cap_add:
+  - IPC_LOCK
+  - SYS_PTRACE
+  ulimit:
+  - memlock=-1:-1
+  - stack=67108864
+  - nofile=65535:65535
+distribution_config:
+  models:
+    entries:
+    - name: Mia-AiLab/GLM-5.3-Flash-EXL3-TR3-4bpw
+      target:
+      - -1
+      revision: 25a44fdbf16862a46b7cc9921142c6c81350af2f
+    - name: incoai/GLM-5.3-Flash-DFlash2
+      target:
+      - -1
+      revision: bf582e4eacc1810f76656d1811693ff6c6737d2a
+pre_exec:
+- |-
+  set -euo pipefail
+  src=/opt/glm53-upstream
+  mkdir -p "$src"
+  curl -fsSL --retry 5 https://github.com/MiaAI-Lab/GLM-5.3-Flash-EXL3-2x-DGX-Sparks/archive/3021f24c88a0904c768c46ff22a508407e31360a.tar.gz | tar -xz -C "$src" --strip-components=1
+  cp "$src"/overlay/*.py /opt/glm53/
+  cp "$src/files/chat_template.jinja" /opt/glm53/chat_template.jinja
+  cp "$src/overlay/exl3.py" /usr/local/lib/python3.12/dist-packages/vllm/model_executor/layers/quantization/exl3.py
+  cp "$src"/tests/test_*.py /opt/glm53/
+  wheel_dir=/cache/runtime/exllamav3-e2-3021f24
+  mkdir -p "$wheel_dir"
+  if ! find "$wheel_dir" -name '*.whl' -print -quit | grep -q .; then
+    mkdir -p /tmp/glm53-exllamav3
+    curl -fsSL --retry 5 https://github.com/turboderp-org/exllamav3/archive/c5d9c657966ffeeaa9353f0cc899f18629da4a13.tar.gz | tar -xz -C /tmp/glm53-exllamav3 --strip-components=1
+    python3 /opt/glm53/patch_exl3_ext_aarch64.py /tmp/glm53-exllamav3/exllamav3/exllamav3_ext
+    python3 /opt/glm53/patch_exl3_fat_kernel.py /tmp/glm53-exllamav3/exllamav3/exllamav3_ext "$src/overlay"
+    CPATH=/usr/local/lib/python3.12/dist-packages/nvidia/cu13/include CPLUS_INCLUDE_PATH=/usr/local/lib/python3.12/dist-packages/nvidia/cu13/include C_INCLUDE_PATH=/usr/local/lib/python3.12/dist-packages/nvidia/cu13/include MAX_JOBS=4 pip wheel --no-deps --no-build-isolation --no-cache-dir --wheel-dir "$wheel_dir" /tmp/glm53-exllamav3
+  fi
+  pip install --no-deps --force-reinstall "$wheel_dir"/*.whl
+  python3 /opt/glm53/patch_dflash2.py
+  python3 /opt/glm53/patch_glm_eagle3.py
+- python3 /opt/glm53/patch_glm_video_placeholders.py
+- python3 /opt/glm53/patch_suppress_stops_in_reasoning.py
+- python3 /opt/glm53/patch_scheduler_decode_floor.py
+- python3 /opt/glm53/patch_glm5_drafter_group.py
+- python3 /opt/glm53/patch_hybrid_prefix_hit.py
+- python3 /opt/glm53/patch_xgrammar_termination.py
+- python3 /opt/glm53/patch_kpool_tail_slotmap.py
+- python3 /opt/glm53/patch_spinwait.py
+- python3 /opt/glm53/patch_indexer_workspace.py
+- python3 /opt/glm53/patch_ablit.py
+- EXL3_SELFCHECK_GPU=1 python3 /opt/glm53/test_exl3_overlay.py
+command: |
+  vllm serve {model} \
+    --revision {revision} \
+    --served-model-name {served_model_name} \
+    --host {host} \
+    --port {port} \
+    --tensor-parallel-size {tensor_parallel} \
+    --pipeline-parallel-size {pipeline_parallel} \
+    --distributed-executor-backend {distributed_executor_backend} \
+    --quantization {quantization} \
+    --load-format {load_format} \
+    --kv-cache-dtype {kv_cache_dtype} \
+    --max-model-len {max_model_len} \
+    --max-num-seqs {max_num_seqs} \
+    --max-num-batched-tokens {max_num_batched_tokens} \
+    --gpu-memory-utilization {gpu_memory_utilization} \
+    --tool-call-parser glm47 \
+    --enable-auto-tool-choice \
+    --reasoning-parser glm45 \
+    --enable-prefix-caching \
+    --no-enable-flashinfer-autotune \
+    --chat-template /opt/glm53/chat_template.jinja \
+    --limit-mm-per-prompt '{"image":4,"video":1}' \
+    --skip-mm-profiling \
+    --cudagraph-capture-sizes 1 2 4 8 16 24 32 \
+    --speculative-config '{local_speculative_config}'
+cluster_config:
+  local_cache_dir: /srv/hf
+  remote_cache_dir: /srv/hf

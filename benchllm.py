@@ -616,6 +616,7 @@ def wait_for_ready(base_url: str, timeout: int) -> None:
     prev_t = time.monotonic()
     last_crash_check = 0.0
     crash_strikes = 0            # require 2 consecutive hits to avoid false positives
+    dead_strikes = 0             # same, for a verifiably dead serve process
     GiB = 1024 ** 3
     while time.monotonic() < deadline:
         try:
@@ -628,6 +629,19 @@ def wait_for_ready(base_url: str, timeout: int) -> None:
         # Bail fast on an engine crash rather than waiting out the timeout.
         if time.monotonic() - last_crash_check > 15:
             last_crash_check = time.monotonic()
+            # A dead serve process is fatal on its own: with no log to read
+            # (crashed container, or a rank that died before writing anything)
+            # the crash-phrase check below sees nothing and the wait used to
+            # burn its whole timeout before reporting "did not become ready in
+            # time", which hides the real failure.
+            if serve_pid_alive() is False:
+                dead_strikes += 1
+                if dead_strikes >= 2:
+                    raise StartupError(
+                        "serve process is gone (pid file present, process dead) "
+                        "- the engine died during startup; see the serve log")
+            else:
+                dead_strikes = 0
             err = fatal_serve_error(read_serve_log())
             if err and serve_pid_alive() is True:
                 # Error-shaped line in the log but the serve process is still
@@ -956,7 +970,7 @@ def classify_death(state: dict) -> tuple[str, str]:
 
 def ensure_up(workload: Workload, base_url: str, served: str, phase: str,
               warnings: list, state: dict, follow_dest: Path,
-              can_restart: bool) -> tuple[str, str, str]:
+              can_restart: bool, ready_timeout: int = 3600) -> tuple[str, str, str]:
     """Ensure the server can generate before a step runs. If it already
     generates, continue; otherwise (re)start it. There is NO restart cap — every
     step independently brings the model back up. Returns (status, code, detail):
@@ -976,9 +990,12 @@ def ensure_up(workload: Workload, base_url: str, served: str, phase: str,
     log(f"Ensuring server is up for {phase} (start #{n})...")
     try:
         workload.restart()
-        wait_for_ready(base_url, 1800)
-        warmup(base_url, served)
+        # Start following BEFORE the readiness wait. Following afterwards meant
+        # a restart that never came up wrote nothing to the follow log, leaving
+        # its STARTUP failure unexplainable after the fact.
         workload.follow_logs(follow_dest)
+        wait_for_ready(base_url, ready_timeout)
+        warmup(base_url, served)
     except (StartupError, requests.RequestException) as exc:
         warnings.append(f"{phase}: server was down [{code}] and could not be restarted: {exc}")
         return "down", "STARTUP", str(exc)
@@ -997,21 +1014,42 @@ def diagnose_step_failure(base_url: str, served: str, state: dict) -> tuple[str,
     return classify_death(state)
 
 
-def probe_loglikelihood_support(base_url: str, model: str) -> bool:
-    """Can this server score loglikelihood requests (echo + logprobs)? One cheap
-    request; the answer must contain actual token logprobs, not just HTTP 200 —
-    a 200 with empty logprobs would wedge lm-eval exactly like a rejection."""
+def probe_loglikelihood_support(base_url: str, model: str):
+    """Can this server score loglikelihood requests (echo + logprobs)?
+
+    Returns True (supported), False (the server answered and cannot do it), or
+    None (UNKNOWN - unreachable, or a 5xx that says nothing about the feature).
+    UNKNOWN must never be reported as UNSUPPORTED: probing a server that a
+    previous step had killed used to skip every multiple-choice task with a
+    bogus UNSUPPORTED code. A 200 with empty logprobs IS unsupported - it would
+    wedge lm-eval exactly like a rejection.
+    """
     try:
         resp = requests.post(f"{base_url}/completions", json={
             "model": model, "prompt": "hi", "max_tokens": 1,
             "echo": True, "logprobs": 1,
         }, timeout=60)
-        if resp.status_code != 200:
-            return False
-        lp = (resp.json().get("choices") or [{}])[0].get("logprobs") or {}
-        return bool(lp.get("token_logprobs"))
-    except Exception:  # noqa: BLE001 - treat any probe failure as unsupported
+    except Exception as exc:  # noqa: BLE001 - unreachable is not "unsupported"
+        log(f"loglikelihood probe: no answer from server ({exc}); UNKNOWN")
+        return None
+    body = " ".join((resp.text or "")[:300].split())
+    if resp.status_code >= 500:
+        log(f"loglikelihood probe: HTTP {resp.status_code} {body}; UNKNOWN")
+        return None
+    if resp.status_code != 200:
+        log(f"loglikelihood probe: HTTP {resp.status_code} {body}; unsupported")
         return False
+    try:
+        lp = (resp.json().get("choices") or [{}])[0].get("logprobs") or {}
+    except ValueError:
+        log(f"loglikelihood probe: non-JSON 200 {body}; unsupported")
+        return False
+    if lp.get("token_logprobs"):
+        log("loglikelihood probe: echo+logprobs supported.")
+        return True
+    log(f"loglikelihood probe: HTTP 200 but no token_logprobs {str(lp)[:200]}; "
+        f"unsupported")
+    return False
 
 
 # Tasks whose evaluation executes model-generated code on this machine.
@@ -1714,7 +1752,8 @@ def main() -> None:
     def ensure(phase: str) -> tuple[str, str, str]:
         """Ensure the server is up before a step; (re)start it if not (no cap)."""
         return ensure_up(workload, base_url, served, phase, warnings,
-                         revive_state, follow_dest, can_restart=not args.skip_run)
+                         revive_state, follow_dest, can_restart=not args.skip_run,
+                         ready_timeout=args.ready_timeout)
 
     def diagnose(phase: str) -> tuple[str, str]:
         """Classify a step failure: ERROR if the server is still healthy, else
@@ -1756,13 +1795,34 @@ def main() -> None:
             chat_tasks = []
             specs = [t.strip() for t in args.eval_tasks.split(",") if t.strip()]
             # Probe once, only if a requested task needs loglikelihood scoring.
+            # The step before this one (bfcl) can leave the server dead, and a
+            # probe of a dead server answers "unsupported" - which used to skip
+            # mmlu/arc_challenge/hellaswag with a bogus UNSUPPORTED code. So
+            # bring the server up first, and only a definitive answer from a
+            # live server disables the multiple-choice tasks; UNKNOWN lets each
+            # task run and record its own real failure code.
             ll_ok = True
             if any(s.partition(":")[0] in LOGLIKELIHOOD_TASKS for s in specs):
-                ll_ok = probe_loglikelihood_support(base_url, served)
-                if not ll_ok:
+                ll_status, ll_code, ll_detail = ensure("before loglikelihood probe")
+                if ll_status == "down":
+                    log(f"loglikelihood probe skipped: server down [{ll_code}]; "
+                        f"multiple-choice tasks will each try to restart it.")
                     warnings.append(
-                        "Server does not support echo+logprobs on /v1/completions "
-                        "(loglikelihood scoring); multiple-choice tasks skipped.")
+                        f"echo+logprobs probe skipped: server was down [{ll_code}] "
+                        f"({ll_detail}); multiple-choice tasks were attempted anyway.")
+                else:
+                    probed = probe_loglikelihood_support(base_url, served)
+                    if probed is None:
+                        probed = probe_loglikelihood_support(base_url, served)
+                    if probed is False:
+                        ll_ok = False
+                        warnings.append(
+                            "Server does not support echo+logprobs on /v1/completions "
+                            "(loglikelihood scoring); multiple-choice tasks skipped.")
+                    elif probed is None:
+                        warnings.append(
+                            "echo+logprobs probe was inconclusive (server did not "
+                            "answer it); multiple-choice tasks were attempted anyway.")
             # Each task independently ensures the server is up before it runs; a
             # failure is recorded with a code and the loop moves on (no cascade
             # skip — the next task will restart the server if this one killed it).
