@@ -1221,6 +1221,16 @@ def run_lm_eval_task(task: str, base_url: str, model: str, tokenizer: str, limit
            "--model_args", model_args,
            "--tasks", task,
            "--output_path", str(eval_dir),
+           # Always keep the per-sample JSONL (prompt, raw generation, filtered
+           # answer). Without it a suspicious score is undiagnosable: on
+           # 2026-09-07 Qwen3.8-Flash-Next scored gsm8k 0.0045 / mbpp 0.056 and
+           # the only way to find out WHY was to relaunch the model and re-run
+           # the tasks by hand. (Cause: every generation was an empty string -
+           # the model emits EOS as its first token on base-style few-shot
+           # prompts, and the same server scores gsm8k 0.88 over
+           # /v1/chat/completions.) Costs ~20-30 MB per recipe, written under
+           # bench-results/ which is gitignored.
+           "--log_samples",
            "--batch_size", "1"]
     if chat:
         # Tasks that omit max_gen_toks fall back to lm-eval's 256, which a
