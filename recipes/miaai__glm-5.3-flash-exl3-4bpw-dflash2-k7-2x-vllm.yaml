@@ -18,7 +18,11 @@ metadata:
     and builds pinned ExLlamaV3 E2 wheel
   model_vram: 164.0
   kv_dtype: fp8_ds_mla
-  kv_vram_per_token: 7.331371307373047e-06
+  # Measured: the engine asks for 14.52 GiB of KV at max_model_len=1000000
+  # (hybrid MLA + Mamba + sliding-window groups, not MLA alone). The old
+  # 7.33e-06 was half the real cost, so sparkrun reported 3.2x spare
+  # context for a pair that could not fit 1x.
+  kv_vram_per_token: 1.4520e-05
   kv_lora_rank: 512
   maintainer: pmorris
 defaults:
@@ -29,7 +33,16 @@ defaults:
   tensor_parallel: 2
   pipeline_parallel: 1
   distributed_executor_backend: mp
-  gpu_memory_utilization: 0.87
+  # 0.87 reserved 105.9 of 121.7 GiB unified memory, which left host
+  # MemAvailable at ~2% and got vllm SIGTERMed by earlyoom during the API
+  # server's warmup - killing the server mid-benchmark, and killing every
+  # restart the same way.
+  # Measured on this pair: 86.4 GiB non-KV (81.0 weights + 5.4 peak
+  # activation) plus 14.5 GiB of KV for the full 1M context = 100.9 GiB, so
+  # 0.85 (103.4 GiB) keeps max_model_len and attention identical with KV to
+  # spare and hands ~2.5 GiB back to the host. Do not go below 0.83: the
+  # engine then refuses to start (11.1 GiB KV < the 14.5 GiB 1M needs).
+  gpu_memory_utilization: 0.85
   max_model_len: 1000000
   max_num_seqs: 4
   max_num_batched_tokens: 7168

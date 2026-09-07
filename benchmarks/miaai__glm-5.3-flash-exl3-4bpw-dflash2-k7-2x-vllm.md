@@ -1,6 +1,6 @@
 # miaai__glm-5.3-flash-exl3-4bpw-dflash2-k7-2x-vllm.yaml benchmark results
 
-Generated UTC: 2026-09-06T13:27:57.652874+00:00
+Generated UTC: 2026-09-07T01:25:15.382839+00:00
 
 ## Run
 
@@ -14,9 +14,9 @@ Generated UTC: 2026-09-06T13:27:57.652874+00:00
 | Base URL | http://127.0.0.1:8000/v1 |
 | Host | Linux 6.17.0-1032-nvidia aarch64 GNU/Linux |
 | GPU | NVIDIA GB10 |
-| Output dir | /home/mrpmorris/sparkrun-recipes/bench-results/miaai__glm-5.3-flash-exl3-4bpw-dflash2-k7-2x-vllm.yaml/20260906-100322 |
-| Command | /home/mrpmorris/sparkrun-recipes/benchllm.py --recipe miaai__glm-5.3-flash-exl3-4bpw-dflash2-k7-2x-vllm |
-| Total duration | 12276 s |
+| Output dir | /home/mrpmorris/sparkrun-recipes/bench-results/miaai__glm-5.3-flash-exl3-4bpw-dflash2-k7-2x-vllm.yaml/20260906-183948 |
+| Command | /home/mrpmorris/sparkrun-recipes/benchllm.py --force --recipe miaai__glm-5.3-flash-exl3-4bpw-dflash2-k7-2x-vllm |
+| Total duration | 24327 s |
 
 ## Recipe settings
 
@@ -29,7 +29,7 @@ Generated UTC: 2026-09-06T13:27:57.652874+00:00
 | tensor_parallel | 2 |
 | pipeline_parallel | 1 |
 | distributed_executor_backend | mp |
-| gpu_memory_utilization | 0.87 |
+| gpu_memory_utilization | 0.85 |
 | max_model_len | 1000000 |
 | max_num_seqs | 4 |
 | max_num_batched_tokens | 7168 |
@@ -43,12 +43,12 @@ Generated UTC: 2026-09-06T13:27:57.652874+00:00
 
 | Prompt tokens | Server prompt tokens | TTFT s | TPOT ms | Prefill tok/s | Generation tok/s | Total s |
 | --- | --- | --- | --- | --- | --- | --- |
-| 256 | 270 | 0.908 | 39.9 | 297.5 | 25.17 | 11.08 |
-| 1024 | 1038 | 1.358 | 38.8 | 764.4 | 25.86 | 11.26 |
-| 4096 | 4109 | 3.840 | 34.8 | 1070.0 | 28.82 | 12.72 |
-| 16384 | 16397 | 14.282 | 43.4 | 1148.1 | 23.14 | 25.34 |
-| 65536 | 65550 | 52.384 | 42.1 | 1251.3 | 23.84 | 63.12 |
-| 260000 | 260015 | 212.441 | 48.3 | 1223.9 | 20.77 | 224.77 |
+| 256 | 268 | 0.774 | 39.3 | 346.5 | 25.57 | 10.78 |
+| 1024 | 1039 | 1.480 | 40.8 | 701.8 | 24.63 | 11.88 |
+| 4096 | 4110 | 3.778 | 39.5 | 1087.9 | 25.41 | 13.85 |
+| 16384 | 16398 | 13.489 | 43.9 | 1215.7 | 22.86 | 24.68 |
+| 65536 | 65550 | 52.544 | 42.7 | 1247.5 | 23.52 | 63.43 |
+| 260000 | 260013 | 213.398 | 37.5 | 1218.4 | 26.79 | 222.95 |
 
 TTFT = time to first token. TPOT = time per output token (mean inter-token latency after the first token). Prefill tok/s = prompt tokens / TTFT. Generation tok/s = output tokens per second after the first token.
 
@@ -60,22 +60,29 @@ Recipe max concurrency: 4 (from max_num_seqs / max_batch_size); levels above it 
 
 | Concurrency | OK | Failed | TTFT p50 s | TTFT p95 s | Per-req gen tok/s | Aggregate tok/s | Wall s |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 1 | 0 | 1.335 | 1.335 | 20.87 | 18.8 | 13.60 |
-| 2 | 2 | 0 | 7.198 | 12.496 | 23.98 | 21.4 | 23.95 |
-| 4 | 4 | 0 | 11.206 | 11.207 | 19.75 | 33.0 | 31.00 |
+| 1 | 1 | 0 | 1.321 | 1.321 | 21.15 | 19.1 | 13.43 |
+| 2 | 2 | 0 | 7.905 | 13.838 | 22.72 | 20.2 | 25.33 |
+| 4 | 4 | 0 | 13.654 | 13.655 | 19.26 | 34.1 | 29.99 |
 
 Per-req gen tok/s = mean per-request generation rate (falls as concurrency rises and the GPU is shared). Aggregate tok/s = total output tokens across all concurrent requests / wall-clock (the server's real throughput under load).
 
 ## Intelligence (lm-eval)
 
-2 task(s) completed, 4 failed.
+6 task(s) completed, 0 failed.
 
 _humaneval ran with 4 of its 5 `until` stop sequences (`\nprint` dropped): vLLM 0.27+ enforces the OpenAI cap of 4 `stop` entries, and lm-eval's local-completions path does not trim (its chat paths do). Applied by patch-lm-eval-stop.py. Not bit-identical to canonical HumanEval - do not quote pass@1 against published figures without this caveat._
 
 | Task | Description | Metric | Value | Stderr | Samples |
 | --- | --- | --- | --- | --- | --- |
-| humaneval | Coding: write Python functions that pass unit tests | pass@1,create_test | 0.7378 | 0.0345 | 164 |
-| mbpp | Coding: basic Python programming problems, graded by unit tests | pass_at_1,none | 0.7860 | 0.0184 | 500 |
+| mmlu | General knowledge across 57 academic subjects | acc,none | 0.8930 | 0.0128 |  |
+| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,strict-match | 0.9318 | 0.0069 | 1319 |
+| gsm8k | Grade-school math word problems (multi-step reasoning) | exact_match,flexible-extract | 0.9318 | 0.0069 | 1319 |
+| arc_challenge | Hard science exam questions (reasoning) | acc,none | 0.6792 | 0.0136 | 1172 |
+| arc_challenge | Hard science exam questions (reasoning) | acc_norm,none | 0.7022 | 0.0134 | 1172 |
+| hellaswag | Commonsense sentence completion | acc,none | 0.5500 | 0.0500 | 100 |
+| hellaswag | Commonsense sentence completion | acc_norm,none | 0.7100 | 0.0456 | 100 |
+| humaneval | Coding: write Python functions that pass unit tests | pass@1,create_test | 0.6890 | 0.0363 | 164 |
+| mbpp | Coding: basic Python programming problems, graded by unit tests | pass_at_1,none | 0.7840 | 0.0184 | 500 |
 
 ## Tool calling (BFCL v4 via EvalScope)
 
@@ -83,51 +90,35 @@ Berkeley Function Calling Leaderboard v4 — exercises the recipe's real tool-ca
 
 | Subset / Category | Score | Samples |
 | --- | --- | --- |
-| GLM-5.3-Flash-EXL3@bfcl_v4 | 0.3744 |  |
-| acc | 0.3744 | 406 |
-| irrelevance | 0.8800 | 25 |
-| live_irrelevance | 0.8400 | 25 |
-| live_multiple | 0.6400 | 25 |
+| GLM-5.3-Flash-EXL3@bfcl_v4 | 0.6798 |  |
+| acc | 0.6798 | 406 |
+| irrelevance | 0.8400 | 25 |
+| live_irrelevance | 0.7600 | 25 |
+| live_multiple | 0.6000 | 25 |
 | live_parallel | 0.7500 | 16 |
-| live_parallel_multiple | 0.7083 | 24 |
-| live_relevance | 0.8125 | 16 |
-| live_simple | 0.8800 | 25 |
-| multi_turn_base | 0.6400 | 25 |
-| multi_turn_long_context | 0.5200 | 25 |
-| multi_turn_miss_func | 0.0000 | 25 |
-| multi_turn_miss_param | 0.0000 | 25 |
-| multiple | 0.0000 | 25 |
-| parallel | 0.0000 | 25 |
-| parallel_multiple | 0.0000 | 25 |
-| simple_java | 0.0000 | 25 |
-| simple_javascript | 0.0000 | 25 |
-| simple_python | 0.0000 | 25 |
-| MULTI_TURN | 0.2900 | 100 |
-| NON_LIVE | 0.0000 | 150 |
-| LIVE | 0.7444 | 90 |
-| HALLUCINATION | 0.8600 | 50 |
-| OVERALL | 0.3924 | 390 |
-| OVERALL_RAW | 0.2474 | 390 |
-
-### Failed benchmarks
-
-These benchmarks could not complete as the model is currently served — a failure here is itself a result: the model/config could not perform this evaluation. Multiple-choice tasks (acc / acc_norm) request token log-probabilities from the inference server; generative tasks do not.
-
-Code: `OOM` out-of-memory kill · `CRASH` fatal engine error in the serve log · `HANG` server alive but stopped generating · `STARTUP` server could not be (re)started · `UNSUPPORTED` server can't perform this eval · `ERROR` step failed with the server still healthy.
-
-| Task | Code | Description | Reason | Log |
-| --- | --- | --- | --- | --- |
-| mmlu | UNSUPPORTED | General knowledge across 57 academic subjects | skipped: server does not support echo+logprobs (required for loglikelihood scoring of multiple-choice tasks) |  |
-| gsm8k | STARTUP | Grade-school math word problems (multi-step reasoning) | skipped: server could not be started (model endpoint did not become ready in time) |  |
-| arc_challenge | UNSUPPORTED | Hard science exam questions (reasoning) | skipped: server does not support echo+logprobs (required for loglikelihood scoring of multiple-choice tasks) |  |
-| hellaswag | UNSUPPORTED | Commonsense sentence completion | skipped: server does not support echo+logprobs (required for loglikelihood scoring of multiple-choice tasks) |  |
+| live_parallel_multiple | 0.7500 | 24 |
+| live_relevance | 0.7500 | 16 |
+| live_simple | 0.9600 | 25 |
+| multi_turn_base | 0.6000 | 25 |
+| multi_turn_long_context | 0.4800 | 25 |
+| multi_turn_miss_func | 0.3600 | 25 |
+| multi_turn_miss_param | 0.4000 | 25 |
+| multiple | 0.8800 | 25 |
+| parallel | 0.8800 | 25 |
+| parallel_multiple | 0.9200 | 25 |
+| simple_java | 0.4800 | 25 |
+| simple_javascript | 0.2400 | 25 |
+| simple_python | 0.9600 | 25 |
+| MULTI_TURN | 0.4600 | 100 |
+| NON_LIVE | 0.8100 | 150 |
+| LIVE | 0.7667 | 90 |
+| HALLUCINATION | 0.8000 | 50 |
+| OVERALL | 0.6829 | 390 |
+| OVERALL_RAW | 0.3757 | 390 |
 
 ## Warnings
 
 - lm-eval ran with sample limits (mmlu:10, hellaswag:100; MMLU's limit is per subtask across 57 subtasks); those scores are comparative samples, not full-benchmark numbers.
 - BFCL ran 17 of 22 scoring categories (--bfcl-subsets all-local). The OVERALL row is an unweighted mean across all 22, so the 5 that did not run count as 0 and drag it down: IGNORE OVERALL at partial coverage and read acc instead. Published leaderboard figures (~0.73-0.77 for frontier models) are full-coverage OVERALL and are not comparable to either number here.
-- Server does not support echo+logprobs on /v1/completions (loglikelihood scoring); multiple-choice tasks skipped.
-- before gsm8k: server was down [OOM] and could not be restarted: model endpoint did not become ready in time
-- before humaneval: server was down [OOM]; restarted (start #2).
 - Top prompt rung capped at 260000 tokens (max length 1000000 minus 256 output tokens and 10000 tokenizer-skew margin).
 - Concurrency levels [8, 16, 32, 64] exceed the recipe's declared max concurrency (4); skipped.
