@@ -1,0 +1,167 @@
+# Reference: https://github.com/MiaAI-Lab/Qwen3.8-Flash-Next-Dual-DGX-Sparks
+# Equivalent of that kit's ./start.sh (2 nodes, NVFP4) with its .env.sample
+# defaults: nvidia/Qwen3.8-Flash-Next-NVFP4, TP2 + expert parallel + MTP=3,
+# fp8 KV, 262144 context, GMU 0.835. Its siblings are NOT this recipe:
+# start-fp8.sh is the FP8-dense hybrid, start-tp1.sh is single-node.
+#
+# Run from this directory:
+#   sparkrun run miaai__qwen3.8-flash-next-nvfp4-mtp3-2x-vllm.yaml --cluster pair --no-follow
+# Existing pair cluster = sparky1.local + sparky2.local, CX7, /srv/hf NFS-shared
+# from sparky1 (so the model dir below is visible to both nodes).
+#
+# WHY `model:` IS A LOCAL PATH, NOT nvidia/Qwen3.8-Flash-Next-NVFP4
+# -----------------------------------------------------------------
+# vLLM builds the MTP draft layer at the index that continues the main stack
+# (mtp.layers.48 for num_hidden_layers=48) and matches that prefix against
+# quantization_config.quantized_layers by exact string. This checkpoint records
+# only mtp.layers.0, so the lookup misses, the MTP MoE is built unquantized and
+# its FP8 weight_scale_inv tensors fail to load ~7 min into the load. Upstream
+# start.sh fixes this by bind-mounting patched config.json + hf_quant_config.json
+# over the snapshot; a sparkrun recipe has no bind-mount surface, so instead we
+# serve /srv/hf/q38-flash-next-nvfp4 — a hard-link view of the snapshot whose
+# two config files are real patched copies (weights are hard links, so it costs
+# no extra disk). sparkrun identity-mounts an absolute `model:` path on every
+# node and skips download/distribution.
+#
+# Rebuild that directory after a checkpoint update with:
+#   bash /srv/hf/q38-flash-next-nvfp4.build.sh
+# NEVER write through the files in it: they are hard links into the shared HF
+# cache blobs, so writing in place corrupts the cached snapshot for every other
+# consumer. rm first, then cp, and check `stat -c %h` == 1.
+recipe_version: '2'
+model: /srv/hf/q38-flash-next-nvfp4
+runtime: vllm
+container: vllm/vllm-openai:qwen38-flash-next
+min_nodes: 2
+max_nodes: 2
+cluster_only: true
+metadata:
+  description: Qwen3.8-Flash-Next NVFP4 (nvidia checkpoint), TP2 + expert parallel + MTP=3,
+    fp8 KV, 262K context, reasoning and tools; sparky1 + sparky2.
+  model_dtype: nvfp4
+  maintainer: pmorris
+  source_model: nvidia/Qwen3.8-Flash-Next-NVFP4
+  source_snapshot: fab0aecb760cec45227f6656abcaafa11abca87a
+  kit_revision: c2325b22602b51a5faf55fc2bebccc34f3f80b9f
+  # Measured by the kit, fp8 KV: 32.02 GiB KV / 3,652,200 cache tokens (13.93x
+  # at 262K). bf16 KV would give 2,131,159 tokens (8.13x).
+  kv_dtype: fp8
+defaults:
+  host: 0.0.0.0
+  port: 8888
+  served_model_name: qwen3.8-flash-next
+  tensor_parallel: 2
+  # The kit's measured default. +0.01 GMU is roughly +0.83 GiB of KV
+  # (~95k more fp8 cache tokens); raise it only with headroom to spare, and
+  # mind that on unified memory every GiB reserved here is a GiB the host
+  # loses (see the GLM 5.3 recipe for what earlyoom does at ~2% MemAvailable).
+  gpu_memory_utilization: 0.835
+  max_model_len: 262144
+  max_num_seqs: 8
+  max_num_batched_tokens: 8192
+  kv_cache_dtype: fp8
+  mm_encoder_tp_mode: data
+  reasoning_parser: qwen3
+  tool_call_parser: qwen3_coder
+  speculative_config: '{"method":"mtp","num_speculative_tokens":3}'
+  compilation_config: '{"mode":0,"cudagraph_mode":"FULL_DECODE_ONLY"}'
+  # This checkpoint declares its FP8 PLE table only inside
+  # quantization_config.config_groups, so the patched ple_layer.py never sees
+  # it via text_config.ple_embedding_dtype. Upstream recovers the value with
+  # files/detect_ple_dtype.py and re-injects it; detected here as
+  # float8_e4m3fn. It MUST be nested under text_config: vLLM's
+  # _apply_dict_overrides only recurses into keys that are themselves nested
+  # configs, and the parent config also exposes a plain rope_parameters dict,
+  # so a top-level override is setattr'd onto the parent and never arrives.
+  hf_overrides: '{"text_config":{"ple_embedding_dtype":"float8_e4m3fn"}}'
+env:
+  # Deliberately NO NCCL_* / IB env here: sparkrun auto-detects this pair's
+  # fabric correctly, and upstream's hardcoded IFACE/IB_HCA values are for
+  # their box. Do not copy them in.
+  VLLM_NO_USAGE_STATS: '1'
+  DO_NOT_TRACK: '1'
+  TRITON_CACHE_DIR: /cache/runtime/triton
+executor_config:
+  # This image declares ENTRYPOINT ["vllm","serve"], which would swallow the
+  # command sparkrun appends (the image's own program would parse sparkrun's
+  # launcher as its flags), so clear it. `user: root` because pre_exec writes
+  # the patched modules straight into /usr/local/lib/python3.12/dist-packages.
+  entrypoint: ''
+  user: root
+  shm_size: 32gb
+  cap_add:
+  - IPC_LOCK
+  - SYS_PTRACE
+  ulimit:
+  - memlock=-1:-1
+  - stack=67108864
+  - nofile=65535:65535
+# The kit patches the image at runtime rather than rebuilding it. Upstream does
+# this host-side (docker cp out, patch, bind-mount back in, scp to the worker);
+# sparkrun runs pre_exec inside EVERY container, so the same scripts run here
+# against the live package and write straight over it. Four patches, all
+# required for this configuration:
+#   patch_ple_layer.py           NVFP4 + mixed PLE dispatch (vLLM PR #53899)
+#   patch_modelopt_mxfp8.py      routes the two shapes FlashInfer mm_mxfp8
+#                                cannot take (linear_attn.in_proj_a/b [48,2560],
+#                                vision MLP fc1 [4304,1152]) to BF16 emulation
+#   patch_modelopt_fp8_block_moe.py  adds the FP8_BLOCK_SCALES routed-expert
+#                                branch that neither this image nor upstream
+#                                vLLM has — this checkpoint's MTP experts are
+#                                FP8_BLOCK_SCALES, so MTP needs it
+#   patch_qsa_fp8_kv.py          the stock QSA kernels hard-refuse anything but
+#                                BF16 KV; required by kv_cache_dtype: fp8
+pre_exec:
+- |-
+  set -euo pipefail
+  src=/opt/q38
+  mkdir -p "$src"
+  curl -fsSL --retry 5 https://github.com/MiaAI-Lab/Qwen3.8-Flash-Next-Dual-DGX-Sparks/archive/c2325b22602b51a5faf55fc2bebccc34f3f80b9f.tar.gz | tar -xz -C "$src" --strip-components=1
+  P=/usr/local/lib/python3.12/dist-packages/vllm
+  N="$P/models/qwen3_8_flash_next/nvidia"
+  M="$P/model_executor/layers/quantization/modelopt.py"
+  # The patch scripts read files/<name>.orig and write files/<name>; upstream
+  # seeds the .orig from `docker cp`, we seed it from the live package.
+  cp "$N/ple_layer.py" "$src/files/ple_layer_patched.py.orig"
+  cp "$M"              "$src/files/modelopt_patched.py.orig"
+  cp "$N/ops/qsa.py"   "$src/files/qsa_ops_patched.py.orig"
+  cp "$N/qsa.py"       "$src/files/qsa_nvidia_patched.py.orig"
+  python3 "$src/files/patch_ple_layer.py"
+  python3 "$src/files/patch_modelopt_mxfp8.py"
+  # Stacks on top of the MXFP8 patch — order matters.
+  python3 "$src/files/patch_modelopt_fp8_block_moe.py"
+  python3 "$src/files/patch_qsa_fp8_kv.py"
+  cp "$src/files/ple_layer_patched.py"    "$N/ple_layer.py"
+  cp "$src/files/modelopt_patched.py"     "$M"
+  cp "$src/files/qsa_ops_patched.py"      "$N/ops/qsa.py"
+  cp "$src/files/qsa_nvidia_patched.py"   "$N/qsa.py"
+  python3 -c "import ast,sys; [ast.parse(open(f).read()) for f in sys.argv[1:]]" \
+    "$N/ple_layer.py" "$M" "$N/ops/qsa.py" "$N/qsa.py"
+  echo "q38 overlay applied: ple_layer, modelopt(+fp8_block_moe), qsa ops+nvidia"
+command: |
+  vllm serve {model} \
+    --served-model-name {served_model_name} \
+    --host {host} \
+    --port {port} \
+    --tensor-parallel-size {tensor_parallel} \
+    --gpu-memory-utilization {gpu_memory_utilization} \
+    --max-model-len {max_model_len} \
+    --max-num-seqs {max_num_seqs} \
+    --max-num-batched-tokens {max_num_batched_tokens} \
+    --kv-cache-dtype {kv_cache_dtype} \
+    --load-format safetensors \
+    --safetensors-load-strategy lazy \
+    --enable-chunked-prefill \
+    --enable-expert-parallel \
+    --all2all-backend allgather_reducescatter \
+    --distributed-executor-backend mp \
+    --mm-encoder-tp-mode {mm_encoder_tp_mode} \
+    --reasoning-parser {reasoning_parser} \
+    --enable-auto-tool-choice \
+    --tool-call-parser {tool_call_parser} \
+    --speculative-config '{speculative_config}' \
+    --compilation-config '{compilation_config}' \
+    --hf-overrides '{hf_overrides}'
+cluster_config:
+  local_cache_dir: /srv/hf
+  remote_cache_dir: /srv/hf
