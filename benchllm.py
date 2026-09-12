@@ -1062,10 +1062,18 @@ CODE_TASKS = {"humaneval", "humaneval_plus", "humaneval_64", "mbpp", "mbpp_plus"
 # 3+ shot base prompts, scoring gsm8k 0.04 via /v1/completions vs 0.88 via
 # /v1/chat/completions (measured 2026-09-12 on sparky1). The chat template
 # prefixes <|im_start|>assistant<think>, which triggers thinking instead of EOS.
-# Code tasks are deliberately excluded: chat answers (prose + markdown fences)
-# are not valid code continuations for prompt+generation execution
-# (humaneval 0.79->0.00, mbpp 0.42->0.03 measured 2026-08-20).
+# Code tasks are deliberately excluded from the think-fallback: chat answers
+# with thinking (prose + markdown fences) are not valid code continuations for
+# prompt+generation execution (humaneval 0.79->0.00 measured 2026-08-20).
 CHAT_FALLBACK_TASKS = {"gsm8k"}
+
+# Few-shot code tasks where completions fail on reasoning models (empty + think
+# tags make prompt+generation unparsable: mbpp 0.084 via completions) but chat
+# with thinking DISABLED works (mbpp 0.05->0.75 measured 2026-09-12, 20 samples).
+# With enable_thinking=False the template emits <think></think> empty and the
+# model outputs raw code (no prose), which executes. 0-shot code (humaneval)
+# stays on completions (0.85) because chat echoes the stub with fences.
+CHAT_NOTHINK_TASKS = {"mbpp", "mbpp_plus"}
 
 
 def recipe_uses_reasoning_parser(recipe: dict) -> bool:
@@ -1221,12 +1229,18 @@ def chat_scored(task: str, chat: bool) -> bool:
 
 def run_lm_eval_task(task: str, base_url: str, model: str, tokenizer: str, limit: int,
                      concurrency: int, outdir: Path, use_chat: bool = False,
-                     chat_max_gen_toks: int = 2048) -> tuple[list[dict], str | None]:
+                     chat_max_gen_toks: int = 2048,
+                     chat_no_think: bool = False) -> tuple[list[dict], str | None]:
     """Run one lm-eval task. Returns (metric rows, error string or None)."""
     ensure_lm_eval_stop_patch()
     eval_dir = outdir / f"lm-eval-{task}"
     eval_dir.mkdir(parents=True, exist_ok=True)
-    chat = chat_scored(task, use_chat)
+    # use_chat here is already the per-task decision from main (manual flag via
+    # chat_scored + auto-fallbacks). Only loglikelihood tasks can never use chat
+    # (LocalChatCompletion.loglikelihood raises NotImplementedError); code tasks
+    # ARE allowed when explicitly requested (auto no-think fallback), since
+    # thinking-disabled chat yields executable raw code.
+    chat = use_chat and task not in LOGLIKELIHOOD_TASKS
     # Chat scoring sends the task's prompt through the model's chat template and
     # reads choices[].message.content, so a `--reasoning-parser` server keeps its
     # thinking in reasoning_content and only the answer is graded. Fewshot
@@ -1265,8 +1279,16 @@ def run_lm_eval_task(task: str, base_url: str, model: str, tokenizer: str, limit
         # Tasks that omit max_gen_toks fall back to lm-eval's 256, which a
         # reasoning model burns entirely on thinking; --gen_kwargs overrides the
         # task yaml so the answer still fits.
-        cmd += ["--apply_chat_template",
-                "--gen_kwargs", f"max_gen_toks={chat_max_gen_toks}"]
+        cmd += ["--apply_chat_template"]
+        if chat_no_think:
+            # Few-shot code on thinking models: disable thinking so the model
+            # emits raw executable code (no <think> tags / prose). JSON form is
+            # required for the nested dict (key=value form cannot nest).
+            gen = json.dumps({"max_gen_toks": chat_max_gen_toks,
+                              "chat_template_kwargs": {"enable_thinking": False}})
+            cmd += ["--gen_kwargs", gen]
+        else:
+            cmd += ["--gen_kwargs", f"max_gen_toks={chat_max_gen_toks}"]
     if limit > 0:
         cmd += ["--limit", str(limit)]
     env = dict(os.environ)
@@ -1833,18 +1855,21 @@ def main() -> None:
             eval_rows = []
             chat_tasks = []
             auto_chat_tasks = []
+            auto_nothink_tasks = []
             specs = [t.strip() for t in args.eval_tasks.split(",") if t.strip()]
             # Reasoning (thinking) models served with --reasoning-parser cannot
             # score base-style few-shot prompts over /v1/completions: the model
             # emits EOS/BOS as its first token on 3+ shot prompts (empty string,
             # e.g. gsm8k 0.04 vs 0.88 via chat). Auto-fallback those tasks to
-            # chat, where the template supplies the <think> trigger. Code tasks
-            # stay on completions: chat answers are not valid continuations.
+            # chat, where the template supplies the <think> trigger. Few-shot
+            # code (mbpp) uses chat with thinking DISABLED (raw executable code,
+            # 0.05->0.75); 0-shot code (humaneval) stays on completions.
             reasoning_model = recipe_uses_reasoning_parser(recipe)
             if reasoning_model:
                 log("Recipe uses a reasoning parser; "
                     f"{sorted(CHAT_FALLBACK_TASKS)} will use chat scoring "
-                    "(base few-shot completions emit EOS on thinking models).")
+                    f"and {sorted(CHAT_NOTHINK_TASKS)} will use chat with thinking "
+                    f"disabled (base few-shot completions emit EOS/think tags).")
             # Probe once, only if a requested task needs loglikelihood scoring.
             # The step before this one (bfcl) can leave the server dead, and a
             # probe of a dead server answers "unsupported" - which used to skip
@@ -1899,15 +1924,23 @@ def main() -> None:
                 auto_chat = (reasoning_model and task in CHAT_FALLBACK_TASKS
                              and task not in LOGLIKELIHOOD_TASKS
                              and task not in CODE_TASKS)
-                use_chat_for_task = chat_scored(task, args.eval_chat) or auto_chat
+                auto_nothink = (reasoning_model and task in CHAT_NOTHINK_TASKS
+                                and task not in LOGLIKELIHOOD_TASKS)
+                use_chat_for_task = (chat_scored(task, args.eval_chat)
+                                     or auto_chat or auto_nothink)
                 if auto_chat and not chat_scored(task, args.eval_chat):
                     log(f"lm-eval: {task} auto-fallback to chat scoring "
                         f"(reasoning model; base few-shot completions emit EOS)")
                     auto_chat_tasks.append(task)
+                if auto_nothink and not chat_scored(task, args.eval_chat):
+                    log(f"lm-eval: {task} auto-fallback to chat with thinking "
+                        f"disabled (reasoning model; think tags break code exec)")
+                    auto_nothink_tasks.append(task)
                 rows, err = run_lm_eval_task(task, base_url, served, tokenizer_id or served,
                                              limit, args.eval_concurrency, outdir,
                                              use_chat=use_chat_for_task,
-                                             chat_max_gen_toks=args.eval_chat_max_gen_toks)
+                                             chat_max_gen_toks=args.eval_chat_max_gen_toks,
+                                             chat_no_think=auto_nothink)
                 if chat_scored(task, args.eval_chat):
                     chat_tasks.append(task)
                 eval_rows += rows
@@ -1940,8 +1973,14 @@ def main() -> None:
                     f"(--reasoning-parser), whose base-style few-shot prompts emit "
                     f"EOS as the first token over /v1/completions (empty generations). "
                     f"Chat applies the template (<|im_start|>assistant<think>) so only "
-                    f"message.content is graded and thinking is excluded. Code tasks "
-                    f"stay on completions.")
+                    f"message.content is graded and thinking is excluded.")
+            if auto_nothink_tasks:
+                warnings.append(
+                    f"Code tasks ({', '.join(auto_nothink_tasks)}) auto-fell back to "
+                    f"/v1/chat/completions with thinking disabled "
+                    f"(chat_template_kwargs enable_thinking=False): completions emit "
+                    f"empty/think-tagged generations that break prompt+generation "
+                    f"execution, while no-think chat yields raw executable code.")
 
         if args.skip_speed:
             ladder_points, reuse_note = load_previous_speed(
