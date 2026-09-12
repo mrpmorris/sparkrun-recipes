@@ -1056,6 +1056,35 @@ def probe_loglikelihood_support(base_url: str, model: str):
 # lm-eval refuses to run them without an explicit opt-in flag.
 CODE_TASKS = {"humaneval", "humaneval_plus", "humaneval_64", "mbpp", "mbpp_plus"}
 
+# Generative reasoning tasks where base-style few-shot completions are known to
+# fail on chat-only reasoning models. E.g. Qwen3.8-Flash-Next emits EOS/BOS
+# (248044, which is both BOS and EOS for this tokenizer) as its first token on
+# 3+ shot base prompts, scoring gsm8k 0.04 via /v1/completions vs 0.88 via
+# /v1/chat/completions (measured 2026-09-12 on sparky1). The chat template
+# prefixes <|im_start|>assistant<think>, which triggers thinking instead of EOS.
+# Code tasks are deliberately excluded: chat answers (prose + markdown fences)
+# are not valid code continuations for prompt+generation execution
+# (humaneval 0.79->0.00, mbpp 0.42->0.03 measured 2026-08-20).
+CHAT_FALLBACK_TASKS = {"gsm8k"}
+
+
+def recipe_uses_reasoning_parser(recipe: dict) -> bool:
+    """Does this recipe serve with a reasoning parser (i.e. a thinking model)?
+
+    Checks the serve command for --reasoning-parser / --reasoning-config and
+    defaults for reasoning keys. Used to auto-fallback GSM8K-style tasks to
+    chat scoring, where the template provides the <think> trigger that base
+    few-shot completions lack.
+    """
+    cmd = recipe.get("command") or ""
+    if "reasoning-parser" in cmd or "reasoning_parser" in cmd:
+        return True
+    defaults = recipe.get("defaults") or {}
+    for k in defaults:
+        if "reasoning" in str(k).lower():
+            return True
+    return False
+
 # Footnote emitted with the intelligence table whenever a humaneval variant ran.
 HUMANEVAL_STOP_NOTE = (
     "_humaneval ran with 4 of its 5 `until` stop sequences (`\\nprint` dropped): "
@@ -1187,7 +1216,7 @@ def chat_scored(task: str, chat: bool) -> bool:
     for raw completions, and chat answers break their scoring (see --eval-chat
     help for measured damage).
     """
-    return chat and task not in LOGLIKELIHOOD_TASKS
+    return chat and task not in LOGLIKELIHOOD_TASKS and task not in CODE_TASKS
 
 
 def run_lm_eval_task(task: str, base_url: str, model: str, tokenizer: str, limit: int,
@@ -1803,7 +1832,19 @@ def main() -> None:
         if not args.skip_eval:
             eval_rows = []
             chat_tasks = []
+            auto_chat_tasks = []
             specs = [t.strip() for t in args.eval_tasks.split(",") if t.strip()]
+            # Reasoning (thinking) models served with --reasoning-parser cannot
+            # score base-style few-shot prompts over /v1/completions: the model
+            # emits EOS/BOS as its first token on 3+ shot prompts (empty string,
+            # e.g. gsm8k 0.04 vs 0.88 via chat). Auto-fallback those tasks to
+            # chat, where the template supplies the <think> trigger. Code tasks
+            # stay on completions: chat answers are not valid continuations.
+            reasoning_model = recipe_uses_reasoning_parser(recipe)
+            if reasoning_model:
+                log("Recipe uses a reasoning parser; "
+                    f"{sorted(CHAT_FALLBACK_TASKS)} will use chat scoring "
+                    "(base few-shot completions emit EOS on thinking models).")
             # Probe once, only if a requested task needs loglikelihood scoring.
             # The step before this one (bfcl) can leave the server dead, and a
             # probe of a dead server answers "unsupported" - which used to skip
@@ -1855,9 +1896,17 @@ def main() -> None:
                         "description": TASK_DESCRIPTIONS.get(task, "")})
                     log(f"  SKIPPED {task} [{code}]: server down")
                     continue
+                auto_chat = (reasoning_model and task in CHAT_FALLBACK_TASKS
+                             and task not in LOGLIKELIHOOD_TASKS
+                             and task not in CODE_TASKS)
+                use_chat_for_task = chat_scored(task, args.eval_chat) or auto_chat
+                if auto_chat and not chat_scored(task, args.eval_chat):
+                    log(f"lm-eval: {task} auto-fallback to chat scoring "
+                        f"(reasoning model; base few-shot completions emit EOS)")
+                    auto_chat_tasks.append(task)
                 rows, err = run_lm_eval_task(task, base_url, served, tokenizer_id or served,
                                              limit, args.eval_concurrency, outdir,
-                                             use_chat=args.eval_chat,
+                                             use_chat=use_chat_for_task,
                                              chat_max_gen_toks=args.eval_chat_max_gen_toks)
                 if chat_scored(task, args.eval_chat):
                     chat_tasks.append(task)
@@ -1884,6 +1933,15 @@ def main() -> None:
                     f"thinking is excluded. EXPERIMENTAL (--eval-chat): these "
                     f"scores are NOT comparable to completions-scored runs, and "
                     f"humaneval/mbpp are structurally broken under chat scoring.")
+            if auto_chat_tasks:
+                warnings.append(
+                    f"Generative tasks ({', '.join(auto_chat_tasks)}) auto-fell back to "
+                    f"/v1/chat/completions: this recipe serves a reasoning model "
+                    f"(--reasoning-parser), whose base-style few-shot prompts emit "
+                    f"EOS as the first token over /v1/completions (empty generations). "
+                    f"Chat applies the template (<|im_start|>assistant<think>) so only "
+                    f"message.content is graded and thinking is excluded. Code tasks "
+                    f"stay on completions.")
 
         if args.skip_speed:
             ladder_points, reuse_note = load_previous_speed(
