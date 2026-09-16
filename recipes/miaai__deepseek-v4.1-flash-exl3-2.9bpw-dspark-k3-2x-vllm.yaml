@@ -15,45 +15,45 @@
 # recipe stages whole shards node-locally instead, which is simpler but leaves
 # a miss as two reads rather than one.
 #
-# KNOWN-GOOD PROMPT CEILING: ~100k tokens. Measured ladder, node-local Engram:
-#   50,601 tok  -> SUCCESS, 485 tok/s
-#  101,201 tok  -> SUCCESS, 537 tok/s
-#  200,201 tok  -> worker wedged ~55 s in
-# max_model_len stays at upstream 600000; it is NOT the variable (a 250k prefill
-# at 262144 wedged identically). The ceiling is a property of the pair, not of
-# the configured context.
+# ROOT CAUSE FOUND AND FIXED 2026-09-16: memory FRAGMENTATION, not exhaustion.
+# REQUIRED: install host-setup/dsv41-compact.timer on BOTH nodes (see that dir).
+# Without it the worker wedges hard and needs a power cycle.
 #
-# THE WORKER STILL WEDGES, AND HAS DONE SO AT IDLE (2026-09-16, unresolved).
-# Mechanism is measured: kernel reclaim livelock. Across ONE 4.6 s 100k prefill
-# the worker scanned 19.9M pages (pgscan_kswapd + pgscan_direct) to reclaim only
-# 209k (pgsteal) - about 95:1 - while swapping (pswpin +58k). On GB10 the ~113
-# GiB the driver pins IS host memory and is unevictable, so kswapd walks LRU
-# lists finding nothing and stalls every task. No pool ever runs out, which is
-# why MemFree/MemAvailable/earlyoom never predict it. Lifetime scan:steal is
-# 1.3:1 on the head vs 14.6:1 on the worker with identical sysctls.
-# Twice it has wedged shortly after model load with NO request ever sent, so a
-# long prompt raises the odds but is not required.
+# Loading the model shatters the buddy allocator. Free blocks in zone Normal:
+#           >=1 MiB (order 8+)    >=4 MiB (order 10+)
+#   boot            3909                 24
+#   after load        10                  0
+# The NVIDIA driver then asks for physically contiguous memory, fails with
+#   NVRM: Out of memory [NV_ERR_NO_MEMORY] from _memdescAllocInternal @ mem_desc.c:1359
+# *while /proc/meminfo shows 8.74 GiB free*, and the kernel livelocks trying to
+# compact its way out: 1.03e9 pages scanned for 1.05e7 reclaimed (97:1) with 82%
+# of compaction attempts failing. Userspace stops answering; ping still works.
 #
-# RECOVERY WITHOUT A POWER CYCLE (worked once, on the head):
-#   sudo sysctl -w vm.min_free_kbytes=45056 vm.watermark_scale_factor=10
-# Lowering a watermark is non-blocking; raising one is not. If only shell
-# builtins still answer (pwd works, sysctl/dmesg/ps hang) the box is past saving.
+# One `echo 1 > /proc/sys/vm/compact_memory` restores ~300 high-order blocks and
+# is sufficient. Measured after compaction, at max_model_len 600000:
+#   204,892 tok ->   707 tok/s   psi 0.00   order8+ held 158-221
+#   399,829 tok ->   662 tok/s   psi 0.00   order8+ held 190
+#   593,861 tok -> 1,680 tok/s   psi 0.00   order8+ held 170
+# All three previously wedged the worker within ~2 min. It is also FASTER than
+# before (was 436-537 tok/s), because the driver no longer retries failed allocs.
 #
 # Tried and did NOT fix it - do not re-litigate:
-#   * max_model_len (600000 vs 262144): identical failure.
-#   * gpu_memory_utilization 0.88 -> 0.84 -> 0.82: still wedges, incl. at idle.
-#   * max_num_batched_tokens 1024 -> 512 + long_prefill_token_threshold -> 256:
-#     delays the wedge from ~2 min to ~8 min, does not prevent it.
-#   * vm.swappiness=0: harmless, no effect on the wedge.
-#   * RAISING vm.min_free_kbytes/watermark_scale_factor: actively harmful -
-#     livelocked a loaded head instantly, and broke startup outright
-#     ("Free memory on device cuda:0 (103.05/121.69 GiB) ... less than desired
-#     GPU memory utilization (0.88, 107.09 GiB)").
+#   * max_model_len 600000 vs 262144: identical failure.
+#   * gpu_memory_utilization 0.88 / 0.84 / 0.82: still wedged, incl. at idle.
+#   * max_num_batched_tokens 1024->512 + long_prefill_token_threshold 768->256:
+#     delays the wedge ~2 min -> ~8 min, does not prevent it.
+#   * vm.swappiness=0: no effect.
+#   * RAISING vm.min_free_kbytes / vm.watermark_scale_factor: HARMFUL - instantly
+#     livelocked a loaded head, and broke startup ("Free memory on device cuda:0
+#     (103.05/121.69 GiB) ... less than desired GPU memory utilization (0.88,
+#     107.09 GiB)").
+#   * Full DGX OS apt upgrade: kernel 7.0.0-1019-nvidia, driver 580.178.04 and
+#     DGX 7.2.3 all unchanged. A no-op for this bug.
 #
 # Corrected earlier claim: NFS/page-cache asymmetry was NOT ruled out - it was
-# real. A shared Engram dir made every worker row an NFS round trip; moving it
-# node-local took 100k prefills from fatal to 537 tok/s. The old O_DIRECT check
-# was the wrong test.
+# real, and fixing it was a prerequisite. A shared Engram dir made every worker
+# row an NFS round trip; moving it node-local took 100k prefills from fatal to
+# 537 tok/s. The old O_DIRECT check was simply the wrong test.
 #
 # Three things that had to be got right, all of which failed loudly first:
 #  1. NCCL_IB_HCA must pin the f1 ports (see the NCCL block below).

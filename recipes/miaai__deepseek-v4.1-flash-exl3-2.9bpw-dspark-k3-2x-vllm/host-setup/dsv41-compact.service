@@ -1,0 +1,13 @@
+[Unit]
+Description=Compact the buddy allocator for the DGX Spark GPU driver
+
+[Service]
+Type=oneshot
+# Loading a ~100 GiB EXL3 model shatters the buddy allocator: free blocks of
+# >=1 MiB fall from ~3900 to ~10, and none >=4 MiB remain. The NVIDIA driver
+# then fails _memdescAllocInternal with NV_ERR_NO_MEMORY *while gigabytes are
+# free*, and the kernel livelocks trying to compact its way out (measured:
+# 1.03e9 pages scanned for 1.05e7 reclaimed, 82% of compactions failing).
+# One compaction restores ~300 high-order blocks, enough to carry a 594k-token
+# prefill at psi 0.00.
+ExecStart=/bin/sh -c 'echo 1 > /proc/sys/vm/compact_memory'
