@@ -96,7 +96,7 @@ defaults:
   # the 262144 it replaced: a 250k prefill at 262144 produced the same NVRM
   # storm as a 594k prefill at 600000 (see the header note), so long prompts -
   # not this number - are the risk. Short-prompt serving is unaffected.
-  max_model_len: 600000
+  max_model_len: 1048576
   max_num_seqs: 2
   # >= 1025 is only required with the vision tower on; text-only 1024 is the
   # upstream default. The V4.1 indexer scores every chunk row against the whole

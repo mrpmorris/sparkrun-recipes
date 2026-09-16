@@ -1,0 +1,18 @@
+[Unit]
+Description=Compact the buddy allocator whenever a sparkrun container starts
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=10
+# `docker events` blocks until a container starts, so this costs nothing while
+# idle. Model loading shatters the allocator (free blocks >=1 MiB: ~3900 -> 10),
+# and the NVIDIA driver then fails _memdescAllocInternal with NV_ERR_NO_MEMORY
+# despite gigabytes free. Compacting as soon as the container is up closes the
+# window before the first large prefill can arrive.
+ExecStart=/bin/sh -c 'docker events --filter event=start --format "{{.Actor.Attributes.name}}" | while read n; do case "$n" in sparkrun_*) sleep 60; echo 1 > /proc/sys/vm/compact_memory;; esac; done'
+
+[Install]
+WantedBy=multi-user.target

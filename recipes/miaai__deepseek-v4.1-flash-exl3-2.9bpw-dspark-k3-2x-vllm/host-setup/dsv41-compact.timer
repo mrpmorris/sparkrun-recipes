@@ -2,9 +2,13 @@
 Description=Periodically compact the buddy allocator (see dsv41-compact.service)
 
 [Timer]
-OnBootSec=2min
-OnUnitActiveSec=5min
-AccuracySec=30s
+# Every 2 min: loading re-fragments the allocator, and an unlucky large prompt
+# arriving before the first compaction is what wedges the box. dsv41-compact-
+# watch.service also fires one immediately when a sparkrun container starts, so
+# this is the safety net rather than the primary trigger.
+OnBootSec=1min
+OnUnitActiveSec=2min
+AccuracySec=15s
 
 [Install]
 WantedBy=timers.target
