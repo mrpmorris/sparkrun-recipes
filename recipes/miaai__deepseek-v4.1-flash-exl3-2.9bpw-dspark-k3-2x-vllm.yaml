@@ -16,6 +16,21 @@
 # NVMe (upstream start.sh pack, worth 25-50% of prefill), which this recipe does not do
 # - both nodes read the rows from /srv/hf, and sparky2 reads them over NFS.
 #
+# WORKER PAGE CACHE - UNRESOLVED (2026-09-16). sparky2 wedges hard (sshd stops
+# answering, the box needs a power cycle) under long prefills. Cause, from its
+# journal: 103x "NVRM: ... Out of memory [NV_ERR_NO_MEMORY] ...
+# _memdescAllocInternal @ mem_desc.c:1359" while earlyoom logged MemAvailable at
+# 8.1-8.3 GiB (6.5%). On GB10 the driver allocates from MemFree, not
+# MemAvailable, so page cache starves it long before earlyoom's 2% trigger:
+# nothing gets killed and the node livelocks instead. 95 of those 103 errors
+# fired during a 114k-token prefill that looked successful from the head.
+# The asymmetry is the Engram read path, not the ranks: sparky1 reads rows from
+# local ext4, where DSV41_DROP_PAGE_CACHE's posix_fadvise(DONTNEED) reclaims
+# them; sparky2 reads every row through the NFS client, where it does not.
+# Fix candidates, both untested: pack the Engram rows onto each node's local
+# NVMe (upstream start.sh pack, O_DIRECT, no page cache), or give sparky2 a
+# local replica of the slim Engram dir instead of serving it over NFS.
+#
 # Three things that had to be got right, all of which failed loudly first:
 #  1. NCCL_IB_HCA must pin the f1 ports (see the NCCL block below).
 #  2. Upstream .env NCCL buffer tuning kills this pair - also below.
@@ -53,12 +68,11 @@ defaults:
   pipeline_parallel: 1
   distributed_executor_backend: mp
   quantization: exl3
-  # Upstream ships 600000, which ends a 601k prefill at 2.1 GiB MemAvailable.
-  # earlyoom on these boxes fires at 2% of 121.7 GiB = ~2.4 GiB and prefers
-  # vllm/python, so the shipped default would be killed mid-prefill here.
-  # 262144 is upstream's earlier conservative value and keeps the low-water
-  # mark above that trigger. Raise one step at a time and watch MemAvailable
-  # AFTER a long prompt, not after a boot.
+  # Upstream ships 600000. DO NOT raise this on this pair until the Engram read
+  # path is fixed - see the WORKER PAGE CACHE note in the header. 262144 is
+  # upstream's earlier conservative value; it boots and serves short prompts,
+  # but even a 114k prefill produced NVRM OOM on the worker, so long prompts
+  # are not safe at ANY context length here yet.
   max_model_len: 262144
   max_num_seqs: 2
   # >= 1025 is only required with the vision tower on; text-only 1024 is the
