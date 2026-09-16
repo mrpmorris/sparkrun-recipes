@@ -34,6 +34,7 @@
 #   204,892 tok ->   707 tok/s   psi 0.00   order8+ held 158-221
 #   399,829 tok ->   662 tok/s   psi 0.00   order8+ held 190
 #   593,861 tok -> 1,680 tok/s   psi 0.00   order8+ held 170
+#   794,952 tok ->   593 tok/s   psi 0.00   order8+ held 250-381  (at 800000)
 # All three previously wedged the worker within ~2 min. It is also FASTER than
 # before (was 436-537 tok/s), because the driver no longer retries failed allocs.
 #
@@ -96,7 +97,7 @@ defaults:
   # the 262144 it replaced: a 250k prefill at 262144 produced the same NVRM
   # storm as a 594k prefill at 600000 (see the header note), so long prompts -
   # not this number - are the risk. Short-prompt serving is unaffected.
-  max_model_len: 1048576
+  max_model_len: 800000
   max_num_seqs: 2
   # >= 1025 is only required with the vision tower on; text-only 1024 is the
   # upstream default. The V4.1 indexer scores every chunk row against the whole
