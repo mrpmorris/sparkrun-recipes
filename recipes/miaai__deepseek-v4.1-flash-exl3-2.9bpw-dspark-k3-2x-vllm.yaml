@@ -16,20 +16,28 @@
 # NVMe (upstream start.sh pack, worth 25-50% of prefill), which this recipe does not do
 # - both nodes read the rows from /srv/hf, and sparky2 reads them over NFS.
 #
-# WORKER PAGE CACHE - UNRESOLVED (2026-09-16). sparky2 wedges hard (sshd stops
-# answering, the box needs a power cycle) under long prefills. Cause, from its
-# journal: 103x "NVRM: ... Out of memory [NV_ERR_NO_MEMORY] ...
-# _memdescAllocInternal @ mem_desc.c:1359" while earlyoom logged MemAvailable at
-# 8.1-8.3 GiB (6.5%). On GB10 the driver allocates from MemFree, not
-# MemAvailable, so page cache starves it long before earlyoom's 2% trigger:
-# nothing gets killed and the node livelocks instead. 95 of those 103 errors
-# fired during a 114k-token prefill that looked successful from the head.
-# The asymmetry is the Engram read path, not the ranks: sparky1 reads rows from
-# local ext4, where DSV41_DROP_PAGE_CACHE's posix_fadvise(DONTNEED) reclaims
-# them; sparky2 reads every row through the NFS client, where it does not.
-# Fix candidates, both untested: pack the Engram rows onto each node's local
-# NVMe (upstream start.sh pack, O_DIRECT, no page cache), or give sparky2 a
-# local replica of the slim Engram dir instead of serving it over NFS.
+# LONG PREFILLS ARE UNSAFE HERE - CAUSE UNKNOWN (2026-09-16).
+# A long prompt drives the NVIDIA driver into repeated
+#   NVRM: ... Out of memory [NV_ERR_NO_MEMORY] ... _memdescAllocInternal
+# and, left alone, one node's userspace wedges hard (sshd stops answering, the
+# box needs a power cycle). Measured, with controls:
+#   * 594k prefill at max_model_len=600000 -> stalled, sparky2 wedged.
+#   * 250k prefill at max_model_len=262144 -> worker NVRM +22 in ~7 s, i.e. the
+#     SAME storm. Context length is therefore NOT the variable, and 600000 is
+#     not implicated relative to 262144. 262144 is kept only because it is what
+#     the short-prompt runs were measured on.
+#   * Aborting on the storm (sparkrun stop, at +20 new NVRM lines) stopped it
+#     before the wedge - the node stayed up. That is the only mitigation known
+#     to work so far.
+# Ruled OUT by measurement, so do not re-litigate these:
+#   * NFS/page-cache asymmetry. Both ranks open the Engram shards O_DIRECT
+#     successfully (zero "O_DIRECT unavailable" warnings on either node), so
+#     neither buffers row reads.
+#   * "The worker is the weak node." Which node logs more NVRM errors is not
+#     stable: 286/103 head-heavy in one boot, 30/67 worker-heavy in another.
+#   * MemFree thresholds as a warning sign. Healthy runs sit at 0.8-1.3 GiB
+#     MemFree; a few NVRM lines during weight load are normal too (one clean
+#     boot logged 30/67 before any long prompt). Only a storm matters.
 #
 # Three things that had to be got right, all of which failed loudly first:
 #  1. NCCL_IB_HCA must pin the f1 ports (see the NCCL block below).
@@ -68,11 +76,11 @@ defaults:
   pipeline_parallel: 1
   distributed_executor_backend: mp
   quantization: exl3
-  # Upstream ships 600000. DO NOT raise this on this pair until the Engram read
-  # path is fixed - see the WORKER PAGE CACHE note in the header. 262144 is
-  # upstream's earlier conservative value; it boots and serves short prompts,
-  # but even a 114k prefill produced NVRM OOM on the worker, so long prompts
-  # are not safe at ANY context length here yet.
+  # Upstream ships 600000; this is upstream's earlier conservative value, kept
+  # because the short-prompt measurements here were taken on it. Raising it to
+  # 600000 is NOT known to be worse: a 250k prefill at 262144 produced the same
+  # NVRM storm as a 594k prefill at 600000 (see the header note). Long prompts
+  # are the risk at either setting.
   max_model_len: 262144
   max_num_seqs: 2
   # >= 1025 is only required with the vision tower on; text-only 1024 is the
