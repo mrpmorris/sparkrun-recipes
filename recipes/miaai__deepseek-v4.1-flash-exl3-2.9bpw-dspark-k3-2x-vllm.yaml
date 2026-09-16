@@ -1,0 +1,225 @@
+# Reference: https://github.com/MiaAI-Lab/DeepSeek-v4.1-Flash-EXL3-2x-DGX-Sparks
+# DeepSeek-V4.1-Flash as a local EXL3 2.9 bpw / mul1 pack (39 shards, 197 GiB)
+# on sparky1 + sparky2, TP2 over CX7. The GHCR image carries the whole overlay
+# (SM121 exllamav3_ext, E3 v2 grouped MoE kernels, EXL3 mul1 loader, the GB10
+# patches) baked in and re-applies its python patches at boot, so - unlike the
+# GLM-5.3 recipe next door - pre_exec only has to stage the Engram dir.
+# Run from this directory:
+#   sparkrun run miaai__deepseek-v4.1-flash-exl3-2.9bpw-dspark-k3-2x-vllm.yaml --cluster pair --no-follow
+# Helper script lives in the directory of the same name (minus .yaml).
+#
+# Verified on this pair 2026-09-16: boots in ~9 min (39 EXL3 shards load in 25 s),
+# 17*19 -> 323, reasoning + DSpark both live (mean acceptance length 1.1-3.0,
+# ~25% draft acceptance on prose), 21.2 tok/s on a single 315-token greedy
+# completion, head MemAvailable 5.2 GiB idle after the run. Upstream measures
+# 31.6 tok/s; their number is with the Engram rows packed onto each node's local
+# NVMe (upstream start.sh pack, worth 25-50% of prefill), which this recipe does not do
+# - both nodes read the rows from /srv/hf, and sparky2 reads them over NFS.
+#
+# Three things that had to be got right, all of which failed loudly first:
+#  1. NCCL_IB_HCA must pin the f1 ports (see the NCCL block below).
+#  2. Upstream .env NCCL buffer tuning kills this pair - also below.
+#  3. sparkrun mounts executor_config.volumes at the SOURCE path, ignoring the
+#     destination, so every container-side path here is the host path.
+recipe_version: '2'
+model: Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw
+model_revision: 64ba41b6c916a587db06eae2e19b7845f7be6e6b
+runtime: vllm
+container: ghcr.io/miaai-lab/deepseek-v4.1-flash-exl3-2x-dgx-sparks:2.9bpw
+min_nodes: 2
+max_nodes: 2
+cluster_only: true
+metadata:
+  description: DeepSeek-V4.1-Flash EXL3 2.9bpw mul1, DSpark k=3, TP2 text-only; sparky1 + sparky2.
+  model_params: CED 20+20, Engram L1/L14, native DSpark
+  model_dtype: exl3-2.9bpw-mul1
+  quantization: exl3
+  # ~99.5 GiB of EXL3 weights per rank (scripts/weight_budget.py --tp 2).
+  model_vram: 199.0
+  # vLLM picks fp8_ds_mla itself for this arch - do NOT pass --kv-cache-dtype.
+  # The pool is pinned instead (kv_cache_memory_bytes below), so this figure is
+  # only sparkrun bookkeeping: 2.5 GiB per rank held 774,400 tokens upstream,
+  # i.e. ~3.4 KiB/token of pool.
+  kv_dtype: fp8_ds_mla
+  kv_vram_per_token: 3.3860e-06
+  maintainer: pmorris
+  engram_source: deepseek-ai/DeepSeek-V4.1-Flash shards 47+48 (rev dba1be0a40aa45a94ad051997016db3960a90277)
+defaults:
+  port: 8000
+  host: 0.0.0.0
+  served_model_name: DeepSeek-v4.1-Flash-EXL3
+  revision: 64ba41b6c916a587db06eae2e19b7845f7be6e6b
+  tensor_parallel: 2
+  pipeline_parallel: 1
+  distributed_executor_backend: mp
+  quantization: exl3
+  # Upstream ships 600000, which ends a 601k prefill at 2.1 GiB MemAvailable.
+  # earlyoom on these boxes fires at 2% of 121.7 GiB = ~2.4 GiB and prefers
+  # vllm/python, so the shipped default would be killed mid-prefill here.
+  # 262144 is upstream's earlier conservative value and keeps the low-water
+  # mark above that trigger. Raise one step at a time and watch MemAvailable
+  # AFTER a long prompt, not after a boot.
+  max_model_len: 262144
+  max_num_seqs: 2
+  # >= 1025 is only required with the vision tower on; text-only 1024 is the
+  # upstream default. The V4.1 indexer scores every chunk row against the whole
+  # prefix, so the activation peak grows with chunk x context.
+  max_num_batched_tokens: 1024
+  # Keep max_num_batched_tokens - long_prefill_token_threshold >= 256: a short
+  # chat sent into a long prefill then answers in ~4 s instead of waiting for
+  # the whole prefill (216 s measured upstream at 181k).
+  long_prefill_token_threshold: 768
+  # With kv_cache_memory_bytes set this is only vLLM's startup sanity check
+  # (MemAvailable at init >= util x 121.69 GiB), not a budget.
+  gpu_memory_utilization: 0.88
+  # Pinned 2.5 GiB KV pool. Unpinned, vLLM sizes the pool from host
+  # MemAvailable on this UMA box and the result drifts with page cache.
+  kv_cache_memory_bytes: 2684354560
+  # The SM12x DeepGEMM paged indexer kernel takes 32 or 64 states per block
+  # only; 128 dies on the first decode of the ratio-1 indexer layers.
+  block_size: 64
+  # In-checkpoint DSpark (mtp.*, dspark_block_size=5 is the ceiling, not the
+  # setting). k=3 measured fastest on prose; for >=4 concurrent streams
+  # dropping speculation entirely is faster (53.7 vs 42.8 tok/s aggregate).
+  speculative_config: '{"method":"dspark","num_speculative_tokens":3}'
+  # Identity path: sparkrun 0.3.9 mounts executor_config.volumes sources at the
+  # SAME path inside the container and ignores the mapping'"'"'s value, so the
+  # container must use the host path. With /engram-src the mod wrote 190 GiB of
+  # real copies into the container'"'"'s writable layer instead of hardlinking.
+  engram_dir: /srv/hf/dsv41-engram
+env:
+  # --- EXL3 kernels ---------------------------------------------------------
+  EXL3_FUSED_MOE: '1'
+  # E2 (EXL3_FAT_KERNEL) is K=4/MCG-only; this pack is mul1 K=2/K=3, so the
+  # E3 v2 grouped kernels do the prefill work (17.0 vs 34.1 ms/layer at 1536).
+  EXL3_FAT_KERNEL: '0'
+  EXL3_FAT_GROUPED: '1'
+  # Keep >= max_num_seqs x (num_speculative_tokens + 1) = 8 so a decode step
+  # stays one fused launch; 16 is upstream's measured optimum.
+  EXL3_TEMP_ROWS_FUSED: '16'
+  # exllamav3 keeps ONE lock buffer per device, so two EXL3 GEMMs in flight on
+  # different CUDA streams deadlock. Both of these keep everything on the main
+  # stream and are load-bearing on GB10.
+  DSV41_EXL3_SERIAL_STREAMS: '1'
+  VLLM_DISABLE_SHARED_EXPERTS_STREAM: '1'
+  TORCH_CUDA_ARCH_LIST: 12.1a
+  FLASHINFER_CUDA_ARCH_LIST: 12.1a
+  FLASHINFER_DISABLE_VERSION_CHECK: '1'
+  # --- host memory ----------------------------------------------------------
+  # Without expandable_segments the allocator fragments as the per-chunk
+  # transients grow with the prefix (455k prefill fell to 244 tok/s).
+  PYTORCH_CUDA_ALLOC_CONF: expandable_segments:True
+  # The GB10 driver allocates from MemFree and does not reclaim the page cache
+  # the mmap load leaves behind (NVRM OOM at MemFree ~1 GiB, MemAvailable ~9).
+  DSV41_DROP_PAGE_CACHE: '1'
+  # Release cached allocator blocks after each prefill chunk of a long
+  # sequence, but only when the post-chunk MemAvailable is under 2.5 GiB.
+  DSV41_PREFILL_EMPTY_CACHE_TOKENS: '8192'
+  DSV41_PREFILL_EMPTY_CACHE_MEMAVAIL_GIB: '2.5'
+  DSV41_PREFILL_END_EMPTY_CACHE: '0'
+  # Indexer prefill gather workspace = max_model_len x factor x 132 B; stock
+  # vLLM uses 40 (2.6 GB at 500k). max_num_seqs is the chunk planner's bound.
+  DSV41_INDEXER_PREFILL_FACTOR: '1'
+  VLLM_SPARSE_INDEXER_MAX_LOGITS_MB: '256'
+  # Engram rows have ~0% reuse - no row cache, no pinned scale shard.
+  DSV41_CACHE_GIB: '0'
+  DSV41_RESIDENT_SCALES: '0'
+  DSV41_IO_THREADS: '32'
+  # --- boot -----------------------------------------------------------------
+  DSV41_BOOT_SHAPE_WARMUP: '1'
+  DSV41_SKIP_MIXED_WARMUP: '0'
+  GLM53_SUPPRESS_STOPS_IN_REASONING: '1'
+  GLM53_MIXED_PREFILL_CHUNK: '0'
+  GLM53_SPINWAIT_MS: stock
+  VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS: '1800'
+  VLLM_ENGINE_READY_TIMEOUT_S: '3600'
+  VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS: '1'
+  TRITON_CACHE_DIR: /cache/runtime/triton
+  TILELANG_CACHE_DIR: /cache/runtime/tilelang
+  VLLM_NO_USAGE_STATS: '1'
+  DO_NOT_TRACK: '1'
+  # --- NCCL over the CX7 pair (same pins as the GLM 2x recipe) --------------
+  NCCL_IGNORE_CPU_AFFINITY: '1'
+  NCCL_IB_DISABLE: '0'
+  NCCL_IB_ROCE_VERSION_NUM: '2'
+  # The RoCEv2 GID index is per NIC: on both Sparks only the f1 ports carry a
+  # v2 GID at index 3 (10.10.10.x / 10.10.11.x); the f0 ports are all-zero
+  # there. Without the HCA pin NCCL enumerated an f0 device, and its proxy
+  # died in ibv_reg_mr_iova2 with 'Cannot allocate memory' the moment the TP
+  # group formed - not a memlock problem (ulimit -l was already unlimited).
+  NCCL_IB_HCA: rocep1s0f1,roceP2p1s0f1
+  NCCL_IB_GID_INDEX: '3'
+  NCCL_NET: IB
+  NCCL_CROSS_NIC: '0'
+  NCCL_CUMEM_ENABLE: '0'
+  NCCL_IB_MERGE_NICS: '0'
+  NCCL_NET_PLUGIN: none
+  NCCL_NVLS_ENABLE: '0'
+  # Upstream's UMA NCCL buffer tuning (NCCL_BUFFSIZE / NCCL_LL128_BUFFSIZE /
+  # NCCL_PROTO=^LL128 / NCCL_MAX_NCHANNELS=8) is deliberately NOT set: it comes
+  # from their 3-Spark box, and the GLM 2x recipe on this pair runs without it.
+  NCCL_DEBUG: INFO
+executor_config:
+  entrypoint: ''
+  user: root
+  shm_size: 32gb
+  cap_add:
+  - IPC_LOCK
+  - SYS_PTRACE
+  ulimit:
+  - memlock=-1:-1
+  - stack=67108864
+  - nofile=65535:65535
+  volumes:
+    # Slim Engram dir (shards 47+48 hardlinked + embed-only index), built by
+    # pre_exec. /srv/hf is one ext4 volume on sparky1 and the same volume over
+    # NFS on sparky2, so both nodes see the same directory.
+    /srv/hf/dsv41-engram: /srv/hf/dsv41-engram
+distribution_config:
+  models:
+    entries:
+    - name: Mia-AiLab/DeepSeek-V4.1-Flash-EXL3-2.9bpw
+      target:
+      - -1
+      revision: 64ba41b6c916a587db06eae2e19b7845f7be6e6b
+    # The Engram tables are deliberately NOT listed here. They are shards 47+48
+    # + the index of deepseek-ai/DeepSeek-V4.1-Flash (rev dba1be0a, ~190 GiB),
+    # already in /srv/hf/hub, which both nodes share. sparkrun 0.3.9 model
+    # entries have no allow_patterns (core/recipe.py ModelEntry takes name /
+    # target / revision only), so listing the repo would snapshot_download the
+    # whole 476 GiB tree - 46 shards of which are never read. The mod checks
+    # for the two shards and fails loudly if they go missing.
+# The sibling directory of the same name is a sparkrun mod: sparkrun copies it
+# into both containers and runs its run.sh before the serve command.
+mods:
+- miaai__deepseek-v4.1-flash-exl3-2.9bpw-dspark-k3-2x-vllm
+command: |
+  vllm serve {model} \
+    --revision {revision} \
+    --served-model-name {served_model_name} \
+    --host {host} \
+    --port {port} \
+    --tensor-parallel-size {tensor_parallel} \
+    --pipeline-parallel-size {pipeline_parallel} \
+    --distributed-executor-backend {distributed_executor_backend} \
+    --quantization {quantization} \
+    --max-model-len {max_model_len} \
+    --max-num-seqs {max_num_seqs} \
+    --max-num-batched-tokens {max_num_batched_tokens} \
+    --long-prefill-token-threshold {long_prefill_token_threshold} \
+    --gpu-memory-utilization {gpu_memory_utilization} \
+    --kv-cache-memory-bytes {kv_cache_memory_bytes} \
+    --block-size {block_size} \
+    --tokenizer-mode deepseek_v41 \
+    --tool-call-parser deepseek_v41 \
+    --reasoning-parser deepseek_v41 \
+    --enable-auto-tool-choice \
+    --enable-prefix-caching \
+    --no-enable-flashinfer-autotune \
+    --language-model-only \
+    --hf-overrides '{{"engram_table_dir":"{engram_dir}"}}' \
+    --cudagraph-capture-sizes 1 2 3 4 6 8 12 18 24 \
+    --speculative-config '{speculative_config}'
+cluster_config:
+  local_cache_dir: /srv/hf
+  remote_cache_dir: /srv/hf
