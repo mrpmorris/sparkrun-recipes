@@ -1075,6 +1075,74 @@ CHAT_FALLBACK_TASKS = {"gsm8k"}
 # stays on completions (0.85) because chat echoes the stub with fences.
 CHAT_NOTHINK_TASKS = {"mbpp", "mbpp_plus"}
 
+# Which chat_template_kwargs actually suppress thinking, in priority order.
+# enable_thinking is a QWEN-FAMILY convention. Jinja silently ignores unknown
+# variables, so passing it to a template that does not define it is a no-op -
+# and the run still *reports* that thinking was disabled. GLM-5.3-Flash only
+# honours reasoning_effort ('low'/'high', else 'max') and opens <think>
+# unconditionally, so on 2026-09-19 mbpp scored 0.0000 across all 500 samples:
+# every generation was reasoning prose truncated before any code, and lm-eval
+# executed prompt+prose. Same server scored humaneval 0.7439 via completions.
+THINK_CONTROLS = (
+    ("enable_thinking", {"enable_thinking": False}, "enable_thinking=False"),
+    ("reasoning_effort", {"reasoning_effort": "low"}, "reasoning_effort=low"),
+    ("thinking", {"thinking": False}, "thinking=False"),
+)
+
+
+def chat_template_text(tokenizer_id: str) -> str:
+    """Best-effort read of a model's chat template from the local HF cache.
+
+    Looks at chat_template.jinja first (newer layout) then the chat_template key
+    in tokenizer_config.json. Returns "" when it cannot be found - callers must
+    treat that as "unknown", not as "no thinking switch".
+    """
+    if not tokenizer_id:
+        return ""
+    cand = []
+    direct = Path(tokenizer_id)
+    if direct.is_dir():
+        cand.append(direct)
+    else:
+        snaps = HF_HUB / ("models--" + tokenizer_id.replace("/", "--")) / "snapshots"
+        if snaps.is_dir():
+            try:
+                cand.extend(sorted((d for d in snaps.iterdir() if d.is_dir()),
+                                   key=lambda d: d.stat().st_mtime, reverse=True))
+            except OSError:
+                pass
+    for d in cand:
+        jinja = d / "chat_template.jinja"
+        if jinja.is_file():
+            try:
+                return jinja.read_text()
+            except OSError:
+                pass
+        tc = d / "tokenizer_config.json"
+        if tc.is_file():
+            try:
+                t = json.loads(tc.read_text()).get("chat_template") or ""
+            except (OSError, ValueError):
+                continue
+            if t:
+                return t if isinstance(t, str) else json.dumps(t)
+    return ""
+
+
+def nothink_template_kwargs(tokenizer_id: str) -> tuple:
+    """(chat_template_kwargs, human-readable note) for THIS model's template.
+
+    Returns ({}, reason) when the template defines no thinking switch, so the
+    caller warns instead of silently claiming a no-think run.
+    """
+    tpl = chat_template_text(tokenizer_id)
+    if not tpl:
+        return {}, "chat template not found in the HF cache - thinking left ON"
+    for var, kwargs, note in THINK_CONTROLS:
+        if var in tpl:
+            return dict(kwargs), note
+    return {}, "template defines no thinking switch - thinking left ON"
+
 
 def recipe_uses_reasoning_parser(recipe: dict) -> bool:
     """Does this recipe serve with a reasoning parser (i.e. a thinking model)?
@@ -1283,10 +1351,21 @@ def run_lm_eval_task(task: str, base_url: str, model: str, tokenizer: str, limit
         if chat_no_think:
             # Few-shot code on thinking models: disable thinking so the model
             # emits raw executable code (no <think> tags / prose). JSON form is
-            # required for the nested dict (key=value form cannot nest).
-            gen = json.dumps({"max_gen_toks": chat_max_gen_toks,
-                              "chat_template_kwargs": {"enable_thinking": False}})
-            cmd += ["--gen_kwargs", gen]
+            # required for the nested dict (key=value form cannot nest). The
+            # switch is template-specific - see THINK_CONTROLS.
+            kwargs, note = nothink_template_kwargs(tokenizer)
+            payload = {"max_gen_toks": chat_max_gen_toks}
+            if kwargs:
+                payload["chat_template_kwargs"] = kwargs
+                log(f"lm-eval: {task} no-think via {note}")
+            else:
+                # Thinking cannot be switched off for this template. Give the
+                # model room to think AND still emit code, rather than silently
+                # scoring 0 when the budget runs out mid-reasoning.
+                payload["max_gen_toks"] = max(chat_max_gen_toks, 8192)
+                log(f"lm-eval: {task} WARNING {note}; raising max_gen_toks to "
+                    f"{payload['max_gen_toks']}")
+            cmd += ["--gen_kwargs", json.dumps(payload)]
         else:
             cmd += ["--gen_kwargs", f"max_gen_toks={chat_max_gen_toks}"]
     if limit > 0:
@@ -1443,8 +1522,17 @@ def adjust_bfcl_overall(rows: list, subsets: list) -> list:
 
 
 def run_bfcl(base_url: str, model: str, subsets: list, limit: int,
-             outdir: Path) -> tuple[list[dict], str | None]:
-    """Run BFCL v4 tool-calling eval through EvalScope. Returns (score rows, error or None)."""
+             outdir: Path, batch: int = 8,
+             warnings: list | None = None) -> tuple[list[dict], str | None]:
+    """Run BFCL v4 tool-calling eval through EvalScope. Returns (score rows, error or None).
+
+    batch must not exceed the recipe's declared max concurrency. On 2026-09-19 a
+    hardcoded batch=8 against a recipe serving max_num_seqs=4 stalled the engine
+    during multi_turn_miss_func: 11 requests pending with zero progress for 11
+    minutes, then every in-flight request failed at once. BFCL then raced through
+    its 7 remaining subsets in 5 s each, scoring 0.0000 on connection errors and
+    dragging the reported acc from ~0.68 to 0.3842.
+    """
     py = os.environ.get("BENCHLLM_BFCL_PYTHON")
     log_path = outdir / "bfcl.log"
     if not py or not Path(py).exists():
@@ -1455,10 +1543,10 @@ def run_bfcl(base_url: str, model: str, subsets: list, limit: int,
     runner = work_dir / "bfcl_runner.py"
     runner.write_text(BFCL_RUNNER.format(
         subsets=subsets, model=model, api_url=base_url,
-        batch=8, limit=(limit or None), timeout=BFCL_TIMEOUT_S,
+        batch=batch, limit=(limit or None), timeout=BFCL_TIMEOUT_S,
         max_tokens=BFCL_MAX_TOKENS, work_dir=str(work_dir)))
 
-    log(f"BFCL: {len(subsets)} subset(s) (limit={limit or 'full'}) via EvalScope")
+    log(f"BFCL: {len(subsets)} subset(s) (limit={limit or 'full'}, batch={batch}) via EvalScope")
     rc, _ = stream_process([py, str(runner)], log_path)
     if rc != 0:
         return [], failure("bfcl", log_path, f"EvalScope exit code {rc}")
@@ -1484,7 +1572,50 @@ def run_bfcl(base_url: str, model: str, subsets: list, limit: int,
     rows = adjust_bfcl_overall(rows, subsets)
     # Overall first, then the rest in the order they appeared.
     rows.sort(key=lambda r: (not r["overall"]))
+    dead = bfcl_dead_subsets(work_dir)
+    if dead:
+        # EvalScope stores the transport error as the model's "prediction", which
+        # then fails AST decoding and scores 0 - indistinguishable in the report
+        # from a model that answered wrongly. On 2026-09-19 the engine stalled
+        # mid-run and 7 of 17 subsets "completed" in 5 s each this way, reporting
+        # acc 0.3842 when the subsets that really ran averaged ~0.68.
+        names = ", ".join(f"{n} ({c})" for n, c in dead)
+        if warnings is not None:
+            warnings.append(
+                f"BFCL: the server was unreachable for some samples, and EvalScope "
+                f"scored those transport errors as wrong answers (0). Affected "
+                f"subsets: {names}. Every score above that includes such a subset "
+                f"is a FLOOR, not a measurement - re-run before quoting it.")
+        log(f"BFCL: WARNING transport errors scored as 0 in: {names}")
     return rows, None
+
+
+def bfcl_dead_subsets(work_dir: Path) -> list:
+    """[(subset, n_error_samples)] where predictions are transport errors.
+
+    A prediction of '{"error": "Connection error." ...}' means the sample never
+    reached the model. Those score 0 and are otherwise indistinguishable from a
+    genuine miss, so they have to be surfaced explicitly.
+    """
+    out = []
+    for rv in sorted(work_dir.rglob("*.jsonl")):
+        if "reviews" not in rv.parts:
+            continue
+        bad = 0
+        try:
+            for line in rv.open(encoding="utf-8"):
+                if '"Connection error' in line or '"error": "Request timed out' in line:
+                    bad += 1
+        except OSError:
+            continue
+        if bad:
+            name = rv.stem
+            for pre in ("bfcl_v4_", "bfcl_"):
+                if name.startswith(pre):
+                    name = name[len(pre):]
+                    break
+            out.append((name, bad))
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -1843,7 +1974,16 @@ def main() -> None:
                         f"partial coverage and read acc instead. Published leaderboard "
                         f"figures (~0.73-0.77 for frontier models) are full-coverage OVERALL "
                         f"and are not comparable to either number here.")
-                bfcl_rows, bfcl_err = run_bfcl(base_url, served, subsets, args.bfcl_limit, outdir)
+                # Respect the recipe's declared max concurrency, exactly as the
+                # concurrency ladder does. Over-driving a server past max_num_seqs
+                # queues requests server-side and has stalled the engine outright.
+                _bfcl_cap = detect_max_concurrency(recipe, defaults)
+                _bfcl_batch = min(8, _bfcl_cap) if _bfcl_cap else 8
+                if _bfcl_cap and _bfcl_batch < 8:
+                    log(f"BFCL: capping batch 8 -> {_bfcl_batch} (recipe max concurrency)")
+                bfcl_rows, bfcl_err = run_bfcl(base_url, served, subsets, args.bfcl_limit,
+                                               outdir, batch=_bfcl_batch,
+                                               warnings=warnings)
                 if bfcl_err:
                     code, detail = diagnose("bfcl")
                     bfcl_err["code"] = code
@@ -1975,12 +2115,26 @@ def main() -> None:
                     f"Chat applies the template (<|im_start|>assistant<think>) so only "
                     f"message.content is graded and thinking is excluded.")
             if auto_nothink_tasks:
-                warnings.append(
-                    f"Code tasks ({', '.join(auto_nothink_tasks)}) auto-fell back to "
-                    f"/v1/chat/completions with thinking disabled "
-                    f"(chat_template_kwargs enable_thinking=False): completions emit "
-                    f"empty/think-tagged generations that break prompt+generation "
-                    f"execution, while no-think chat yields raw executable code.")
+                # Report what was ACTUALLY applied. The switch is template-
+                # specific and an unsupported one is silently ignored by Jinja,
+                # so a hard-coded "enable_thinking=False" here once claimed
+                # thinking was off while mbpp scored 0.0000/500 on prose.
+                _nt_kwargs, _nt_note = nothink_template_kwargs(tokenizer_id or served)
+                if _nt_kwargs:
+                    warnings.append(
+                        f"Code tasks ({', '.join(auto_nothink_tasks)}) auto-fell back to "
+                        f"/v1/chat/completions with thinking suppressed "
+                        f"(chat_template_kwargs {_nt_note}): completions emit "
+                        f"empty/think-tagged generations that break prompt+generation "
+                        f"execution, while no-think chat yields raw executable code.")
+                else:
+                    warnings.append(
+                        f"Code tasks ({', '.join(auto_nothink_tasks)}) auto-fell back to "
+                        f"/v1/chat/completions, but THINKING COULD NOT BE DISABLED: "
+                        f"{_nt_note}. The generation budget was raised instead, but if "
+                        f"the model spends it reasoning the graded text contains no "
+                        f"code and the task scores ~0 - treat a 0.0000 here as a "
+                        f"harness artefact, not a capability result.")
 
         if args.skip_speed:
             ladder_points, reuse_note = load_previous_speed(
